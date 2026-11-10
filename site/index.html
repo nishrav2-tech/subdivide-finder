@@ -300,7 +300,6 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "review", label: "Ready for review" }, { id: "approved", label: "Approved for offer" },
     { id: "offer", label: "Offer out" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
   ];
-  var OFFER_STATUSES = ["Not submitted", "Submitted", "Countered", "Accepted", "Under contract", "Rejected", "Withdrawn"];
   var BUCKETS = [
     { id: "needs", short: "Reply needed" }, { id: "held", short: "Claude has a question" }, { id: "draft", short: "Draft ready" },
     { id: "approved", short: "Approved, sending soon" }, { id: "waiting", short: "Claude drafting" }, { id: "followup", short: "Follow-up due" },
@@ -435,8 +434,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { id: "talking", label: "In conversation", hint: "The agent replied. Claude is filling in what's still missing.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
     { id: "review", label: "Ready for review", hint: "Acreage and frontage check out. Do the quick manual review: approve or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
     { id: "approved", label: "Approved for offer", hint: "Approved after review. Hire the agent and make the offer.", dot: "#3E9B2F", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "approved" },
-    { id: "offer", label: "Offer made", hint: "Offer submitted or countered.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
-    { id: "contract", label: "Under contract", hint: "Accepted. On to due diligence.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
+    { id: "offer", label: "Offer made", hint: "Offer is out. Drag here once you submit it.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
+    { id: "contract", label: "Under contract", hint: "Accepted. Drag here when it goes under contract.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
   ];
   var CMAP = {}; COLS.forEach(function (c) { CMAP[c.id] = c; });
   CMAP.ready = CMAP.review; CMAP.aside = CMAP.rejected; // older saved column ids
@@ -892,7 +891,9 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function dealTile(d, c, r) {
     var flag = dealFlag(d);
     var line;
-    if (c.id === "offer" || c.id === "contract") line = d.offer && d.offer.amount ? "Offer " + money(d.offer.amount) + " · " + d.offer.status : "Offer logged";
+    var rv0 = d.review || {};
+    if ((c.id === "review" || c.id === "approved" || c.id === "offer" || c.id === "contract") && (rv0.offerOpen || rv0.offerMax)) line = "Offer " + [rv0.offerOpen ? compact(rv0.offerOpen) : "", rv0.offerMax ? compact(rv0.offerMax) + " max" : ""].filter(Boolean).join(" to ");
+    else if (c.id === "offer" || c.id === "contract") line = d.offer && d.offer.amount ? "Offer " + money(d.offer.amount) + " · " + d.offer.status : "";
     else if (c.id === "contacted" || c.id === "talking") line = d.agent && d.agent.name ? d.agent.name : "";
     else if (c.id === "rejected") line = rejReason(d);
     else line = d.offerHigh ? "2x offer " + compact(d.offerLow) + " to " + compact(d.offerHigh) : "";
@@ -1193,7 +1194,6 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (!d._orphan) {
       if (!threads.length || S.composeOpen[d.id] || S.ideas["new-" + d.id]) body.appendChild(h("div", { className: "box" }, emailPanel("first", "new-" + d.id, null, d)));
       else body.appendChild(h("div", null, h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.composeOpen[d.id] = true; render(); }, text: "+ Start a new email thread with this agent" })));
-      body.appendChild(h("div", { className: "box" }, offerEditor(d)));
     }
     return { head: head, body: body };
   }
@@ -1339,8 +1339,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
   ];
   function reviewEditor(d) {
     var key = "review-" + d.id, rv = d.review || {};
-    var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", notes: rv.notes || "" });
-    var touch = function () { st.dirty = 1; S.err[key] = null; };
+    var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", offerOpen: rv.offerOpen != null ? String(rv.offerOpen) : "", offerMax: rv.offerMax != null ? String(rv.offerMax) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", notes: rv.notes || "" });
+    var touch = function () { st.dirty = 1; st.v = (st.v || 0) + 1; S.err[key] = null; };
     var saveIfDirty = function () { if (st.dirty && !S.busy[key]) saveReview(d, st, key); };
     var perAcre = st.resale && d.acres ? money(+st.resale / +d.acres) + "/ac" : "";
     var vsAsk = st.resale && d.asking ? Math.round(+st.resale / +d.asking * 10) / 10 + "x asking" : "";
@@ -1350,6 +1350,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("label", { className: "f" }, "What you think it sells for ($, whole tract)", h("input", { type: "number", id: key + "-resale", value: st.resale, oninput: function (e) { st.resale = e.target.value; touch(); }, onblur: saveIfDirty })),
         h("label", { className: "f" }, "Lots you'd split it into", h("input", { type: "number", id: key + "-lots", value: st.lots, placeholder: d.splitLots ? String(d.splitLots) : "", oninput: function (e) { st.lots = e.target.value; touch(); }, onblur: saveIfDirty }))),
       (perAcre || vsAsk) ? h("div", { className: "small muted", text: [perAcre, vsAsk, st.lots && st.resale ? money(+st.resale / +st.lots) + " per lot" : ""].filter(Boolean).join(" · ") }) : null,
+      h("div", { className: "grid2" },
+        h("label", { className: "f" }, "Opening offer ($)", h("input", { type: "number", id: key + "-offerOpen", value: st.offerOpen, placeholder: d.offerLow ? String(Math.round(d.offerLow)) : "", oninput: function (e) { st.offerOpen = e.target.value; touch(); }, onblur: saveIfDirty })),
+        h("label", { className: "f" }, "Max offer ($, walk-away)", h("input", { type: "number", id: key + "-offerMax", value: st.offerMax, placeholder: d.offerHigh ? String(Math.round(d.offerHigh)) : "", oninput: function (e) { st.offerMax = e.target.value; touch(); }, onblur: saveIfDirty }))),
+      h("div", { className: "small muted", text: offerHint(d, st) }),
       REVIEW_FIELDS.map(function (f) {
         return h("label", { className: "f" }, f.label, h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
       }),
@@ -1358,42 +1362,24 @@ input[type=file]{font-size:12.5px;max-width:100%}
         status ? h("span", { className: "state", text: status }) : null,
         S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
   }
+  function offerHint(d, st) {
+    var pctOf = function (v, base) { return base ? Math.round(+v / +base * 100) + "%" : ""; };
+    var parts = [];
+    if (st.offerOpen) parts.push("Opening is " + pctOf(st.offerOpen, d.asking) + " of asking" + (st.resale ? ", " + pctOf(st.offerOpen, st.resale) + " of your resale" : ""));
+    if (st.offerMax) parts.push("Max is " + pctOf(st.offerMax, d.asking) + " of asking" + (st.resale ? ", " + (Math.round(+st.resale / +st.offerMax * 100) / 100) + "x to resale" : ""));
+    parts.push("Asking " + money(d.asking) + (d.offerHigh ? " · 2x model range " + money(d.offerLow) + " to " + money(d.offerHigh) : ""));
+    return parts.join(" · ");
+  }
   function saveReview(d, st, key) {
     if (!S.db) return;
     var num = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
-    var review = { resale: num(st.resale), lots: num(st.lots), basis: st.basis || "", defects: st.defects || "", killers: st.killers || "", notes: st.notes || "", updatedAt: new Date().toISOString() };
+    var review = { resale: num(st.resale), offerOpen: num(st.offerOpen), offerMax: num(st.offerMax), lots: num(st.lots), basis: st.basis || "", defects: st.defects || "", killers: st.killers || "", notes: st.notes || "", updatedAt: new Date().toISOString() };
+    var v0 = st.v || 0;
     S.busy[key] = true; S.err[key] = null; render();
-    S.db.doc("deals/" + d.id).update({ review: review }).then(function () { d.review = review; S.busy[key] = false; delete S.local[key]; render(); })
-      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
-  }
-
-  // Offer tracker
-  function offerEditor(d) {
-    var key = "offer-" + d.id;
-    var o = d.offer || {};
-    var st = S.local[key] || (S.local[key] = { amount: o.amount != null ? String(o.amount) : (d.offerHigh ? String(Math.round(d.offerHigh)) : ""), date: o.date || "", status: o.status || "Not submitted", counter: o.counter != null ? String(o.counter) : "", terms: o.terms || "" });
-    var wrap = h("div", { className: "compose" }, h("div", { className: "lbl", text: "Offer" }),
-      h("div", { className: "grid2" },
-        h("label", { className: "f" }, "Offer amount ($)", h("input", { type: "number", id: key + "-amt", value: st.amount, oninput: function (e) { st.amount = e.target.value; st.dirty = 1; } })),
-        h("label", { className: "f" }, "Date sent", h("input", { type: "date", id: key + "-date", value: st.date, oninput: function (e) { st.date = e.target.value; st.dirty = 1; } })),
-        h("label", { className: "f" }, "Status", h("select", { id: key + "-status", onchange: function (e) { st.status = e.target.value; st.dirty = 1; } }, OFFER_STATUSES.map(function (s) { return h("option", { value: s, text: s, selected: st.status === s }); }))),
-        h("label", { className: "f" }, "Their counter ($)", h("input", { type: "number", id: key + "-ctr", value: st.counter, oninput: function (e) { st.counter = e.target.value; st.dirty = 1; } }))),
-      h("label", { className: "f" }, "Terms and notes", h("textarea", { id: key + "-terms", rows: "2", value: st.terms, oninput: function (e) { st.terms = e.target.value; st.dirty = 1; } })),
-      h("div", { className: "row-actions" },
-        h("button", { className: "btn primary", type: "button", onclick: function () { saveOffer(d, st, key); }, text: S.busy[key] ? "Saving…" : "Save offer" }),
-        d.offerHigh ? h("span", { className: "state", text: "2x offer range " + money(d.offerLow) + " to " + money(d.offerHigh) + " · asking " + money(d.asking) }) : null,
-        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
-    return wrap;
-  }
-  function saveOffer(d, st, key) {
-    if (!S.db) return;
-    var offer = { amount: st.amount === "" ? null : +st.amount, date: st.date || null, status: st.status, counter: st.counter === "" ? null : +st.counter, terms: st.terms || "", updatedAt: new Date().toISOString() };
-    var patch = { offer: offer, col: null };
-    if (st.status === "Submitted" || st.status === "Countered") patch.stage = "offer";
-    if (st.status === "Accepted" || st.status === "Under contract") patch.stage = "contract";
-    if (st.status === "Rejected" || st.status === "Withdrawn") patch.stage = d.stage === "offer" ? "talking" : (d.stage || "talking");
-    S.busy[key] = true; S.err[key] = null; render();
-    S.db.doc("deals/" + d.id).update(patch).then(function () { S.busy[key] = false; delete S.local[key]; render(); })
+    S.db.doc("deals/" + d.id).update({ review: review }).then(function () {
+      d.review = review; S.busy[key] = false;
+      if ((st.v || 0) === v0) delete S.local[key]; else saveReview(d, st, key); // keep edits typed while saving
+      render(); })
       .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
   }
 
