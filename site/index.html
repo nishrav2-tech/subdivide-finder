@@ -183,6 +183,8 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .prep-row.edit{grid-template-columns:170px 1fr}
 .prep-row .pe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .prep-row .pe input{flex:1;min-width:160px}
+.prep-later{margin-top:8px}
+.prep-later>summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);padding:4px 0}
 @media (max-width:640px){.prep-row{grid-template-columns:1fr auto}.prep-row .pv{grid-column:1/-1}.prep-row.edit{grid-template-columns:1fr}}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink);font-size:13px}
 .convo{display:flex;flex-direction:column;gap:8px;margin:10px 0}
@@ -428,10 +430,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
   // ---------- pipeline model ----------
   var COLS = [
     { id: "rejected", label: "Rejected", hint: "Failed a screen, went dead, or you passed. Drag one back out anytime.", dot: "#B8422E", pb: "var(--danger-soft)", pc: "var(--danger)", stage: "rejected" },
-    { id: "contact", label: "Contact agent", hint: "Claude is gathering the review facts. First email to the agent comes next.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
+    { id: "contact", label: "Contact agent", hint: "Acreage or frontage still needs confirming. Claude is on it.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
     { id: "contacted", label: "Agent contacted", hint: "Email sent. Waiting on the agent.", dot: "#4F79A8", pb: "var(--info-soft)", pc: "var(--info-ink)", stage: "contacting" },
     { id: "talking", label: "In conversation", hint: "The agent replied. Claude is filling in what's still missing.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
-    { id: "review", label: "Ready for review", hint: "Every review fact is in. Do the quick manual review: approve or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
+    { id: "review", label: "Ready for review", hint: "Acreage and frontage check out. Do the quick manual review: approve or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
     { id: "approved", label: "Approved for offer", hint: "Approved after review. Hire the agent and make the offer.", dot: "#3E9B2F", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "approved" },
     { id: "offer", label: "Offer made", hint: "Offer submitted or countered.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
     { id: "contract", label: "Under contract", hint: "Accepted. On to due diligence.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
@@ -460,6 +462,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (d.stage === "rejected" || d.stage === "dead") return "rejected";
     if (d.stage === "approved") return "approved";
     if (d.stage === "review" || d.stage === "ready") return "review";
+    if (d.screen === "Ready to offer" && (!d.stage || d.stage === "new")) return "review";
     var th = outreachForDeal(d);
     if (th.length) return (d.stage === "talking" || th.some(function (o) { return inboundOf(o).length; })) ? "talking" : "contacted";
     if (d.stage === "talking") return "talking";
@@ -634,7 +637,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
     root.appendChild(h("h2", { className: "sec", text: "How each property is screened" }));
     var screens = [
-      ["Passed screens", "Passes price, frontage, access and slope, and matches Land Portal. Goes to Contact agent while Claude gathers the review facts."],
+      ["Passed screens", "Passes price, frontage, access and slope, and matches Land Portal. Goes straight to Ready for review."],
       ["Verify with agent", "Looks good, but the listing and Land Portal disagree on acres, frontage, access or parcel number. The agent email asks about it."],
       ["Need APN", "No parcel number found on Redfin or Land Portal. The agent email asks for it."],
       ["Frontage short", "Not enough road frontage for the full split; only some lots fit."],
@@ -852,13 +855,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
       tb.appendChild(h("tr", null, h("td", { text: k }), h("td", { className: "r", text: String(c.n) }), h("td", { className: "r", text: String(c.ready) }), h("td", { className: "r", text: String(c.agent) }), h("td", { className: "r", text: String(c.aside) }), h("td", { className: "r", text: money(median(c.ppa)) })));
     });
     var counties = h("div", { className: "panel" }, h("h3", { text: "By county" }),
-      h("table", { className: "t" }, h("thead", null, h("tr", null, h("th", { text: "County" }), h("th", { className: "r", text: "Tracts" }), h("th", { className: "r", text: "Passed" }), h("th", { className: "r", text: "Need agent" }), h("th", { className: "r", text: "Set aside" }), h("th", { className: "r", text: "Median $/ac" }))), tb));
+      h("table", { className: "t" }, h("thead", null, h("tr", null, h("th", { text: "County" }), h("th", { className: "r", text: "Tracts" }), h("th", { className: "r", text: "Passed" }), h("th", { className: "r", text: "Need agent" }), h("th", { className: "r", text: "Failed" }), h("th", { className: "r", text: "Median $/ac" }))), tb));
     root.appendChild(h("div", { className: "two" }, screens, counties));
     if (r.workbook || r.note) root.appendChild(h("p", { className: "foot", text: [r.note, r.workbook ? "Spreadsheet: " + r.workbook : ""].filter(Boolean).join(" ") }));
 
     // Pipeline
     root.appendChild(h("div", { className: "board-bar" },
-      h("h2", { className: "sec" }, "Pipeline", h("span", { className: "muted", text: (ds.length - st.c.aside) + " active" })),
+      h("h2", { className: "sec" }, "Pipeline", h("span", { className: "muted", text: (ds.length - (st.c.rejected || 0)) + " active" })),
       h("input", { type: "text", id: "board-q", placeholder: "Filter by address, county or agent", "aria-label": "Filter properties", value: S.q, oninput: function (e) { S.q = e.target.value; render(); } })));
     var ql = S.q.trim().toLowerCase();
     var match = function (d) { return !ql || [d.address, d.county, d.agent && d.agent.name, d.agent && d.agent.brokerage].join(" ").toLowerCase().indexOf(ql) >= 0; };
@@ -929,8 +932,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
   // ---------- Review prep: the facts Claude gathers before a manual review (deal.prep) ----------
   var PREP_ITEMS = [
-    { k: "parcel", t: "Parcel ID and acreage" },
-    { k: "frontage", t: "Road frontage" },
+    { k: "parcel", t: "Acreage and parcel", req: true },
+    { k: "frontage", t: "Road frontage", req: true },
     { k: "access", t: "Legal access" },
     { k: "water", t: "Water" },
     { k: "electric", t: "Electric" },
@@ -941,18 +944,22 @@ input[type=file]{font-size:12.5px;max-width:100%}
   var PREP_STATES = { ok: { t: "Known", pb: "var(--success-soft)", pc: "var(--success-ink)" }, issue: { t: "Problem", pb: "var(--warn-soft)", pc: "var(--warn-ink)" }, asked: { t: "Asked agent", pb: "var(--info-soft)", pc: "var(--info-ink)" }, missing: { t: "Missing", pb: "var(--surface-2)", pc: "var(--ink-2)" } };
   function prepItem(d, k) { var it = d.prep && d.prep.items && d.prep.items[k]; return it && PREP_STATES[it.s] ? it : { s: "missing" }; }
   function prepCount(d) {
-    var n = { known: 0, issue: 0, total: PREP_ITEMS.length };
-    PREP_ITEMS.forEach(function (p) { var s = prepItem(d, p.k).s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; });
+    var n = { known: 0, issue: 0, total: 0 };
+    PREP_ITEMS.forEach(function (p) { if (!p.req) return; n.total++; var s = prepItem(d, p.k).s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; });
     return n;
   }
   function prepBox(d) {
     var n = prepCount(d), p = d.prep || {};
     var box = h("div", { className: "box" },
       h("div", { className: "row", style: "justify-content:space-between" },
-        h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" }),
+        h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" + (n.issue ? " · " + n.issue + " problem" + (n.issue === 1 ? "" : "s") : "") }),
         h("span", { className: "small muted", text: p.updatedAt ? "Claude updated " + fmtDT(p.updatedAt) : "Claude fills these in on each check" })));
-    var list = h("div", { className: "prep" });
+    var list = h("div", { className: "prep" }), laterKey = "later-" + d.id;
+    var later = h("details", { className: "prep-later", id: laterKey, open: !!S.open[laterKey], ontoggle: function () { S.open[laterKey] = later.open; } },
+      h("summary", { text: "Later: utilities and site facts (not needed for review yet)" }));
+    var laterList = h("div", { className: "prep" }); later.appendChild(laterList);
     PREP_ITEMS.forEach(function (pi) {
+      var list0 = list; if (!pi.req) list = laterList;
       var it = prepItem(d, pi.k), st = PREP_STATES[it.s], ek = "prep-" + d.id + "-" + pi.k;
       if (S.local[ek]) {
         var ed = S.local[ek];
@@ -964,6 +971,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
             h("button", { className: "btn sm primary", type: "button", onclick: function () { savePrep(d, pi.k, ed, ek); }, text: S.busy[ek] ? "Saving…" : "Save" }),
             h("button", { className: "btn sm ghost", type: "button", onclick: function () { delete S.local[ek]; render(); }, text: "Cancel" }),
             S.err[ek] ? h("span", { className: "state err", text: S.err[ek] }) : null)));
+        list = list0;
         return;
       }
       list.appendChild(h("div", { className: "prep-row" },
@@ -971,8 +979,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("span", null, pill(st.t, st.pb, st.pc, true)),
         h("span", { className: "pv" }, h("span", { text: it.v || "" }), it.src ? h("span", { className: "muted small", text: " · " + it.src }) : null),
         h("button", { className: "btn sm ghost", type: "button", "aria-label": "Edit " + pi.t, onclick: function () { S.local[ek] = { s: it.s === "asked" ? "missing" : it.s, v: it.v || "" }; render(); }, text: "Edit" })));
+      list = list0;
     });
     box.appendChild(list);
+    box.appendChild(later);
     if (p.summary) box.appendChild(h("div", { className: "note", style: "margin-top:10px", text: p.summary }));
     return box;
   }
@@ -982,7 +992,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     prep.items[k] = { s: ed.s, v: (ed.v || "").trim(), src: "You, " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TZ }) };
     var patch = { prep: prep };
     var tmp = Object.assign({}, d, { prep: prep }), c = colFor(d);
-    if (!d.col && prepCount(tmp).known === PREP_ITEMS.length && (c === "contact" || c === "contacted" || c === "talking")) patch.stage = "review";
+    var tc = prepCount(tmp); if (!d.col && tc.known === tc.total && (c === "contact" || c === "contacted" || c === "talking")) patch.stage = "review";
     S.busy[ek] = true; S.err[ek] = null; render();
     S.db.doc("deals/" + d.id).update(patch).then(function () { d.prep = prep; if (patch.stage) d.stage = patch.stage; S.busy[ek] = false; delete S.local[ek]; render(); })
       .catch(function (e) { S.busy[ek] = false; S.err[ek] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
