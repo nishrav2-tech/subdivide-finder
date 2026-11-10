@@ -1,0 +1,4 @@
+# Deal data and agent contacts: run in the Supabase SQL editor, never commit.
+supabase/seed/
+.DS_Store
+supabase/.temp/

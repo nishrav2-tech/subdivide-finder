@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Subdivide Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="config.js"></script>
+<script src="sf-adapter.js"></script>
+<style>
+/* Layout idea: a field-office console. KPI strip on top, four tabs (Deals, Inbox, Offers, Counties), one working column of cards. */
+:root {
+  --bg: #f2f5f2;
+  --surface: #ffffff;
+  --ink: #18221d;
+  --muted: #5b6a61;
+  --line: #d9e1db;
+  --accent: #2f5d46;
+  --accent-ink: #ffffff;
+  --soft: #e8efe9;
+  --needs: #c2410c;
+  --claude: #2a5fa6;
+  --good: #23794a;
+  --due: #a86a0a;
+  --wait: #75827b;
+  --bad: #b42318;
+  --done: #9aa69f;
+  --in-bg: #f6f8f6;
+  --out-bg: #eef4f0;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Public Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613; --surface: #192019; --ink: #e6ece7; --muted: #9aa8a0; --line: #2b352e;
+    --accent: #6fb08c; --accent-ink: #0d1510; --soft: #1f2a23;
+    --needs: #f08a4b; --claude: #7aa7e6; --good: #5cc48a; --due: #e0a948; --wait: #8d9a93; --bad: #f2776b; --done: #6b776f;
+    --in-bg: #1d251f; --out-bg: #1a2a20; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111613; --surface: #192019; --ink: #e6ece7; --muted: #9aa8a0; --line: #2b352e;
+  --accent: #6fb08c; --accent-ink: #0d1510; --soft: #1f2a23;
+  --needs: #f08a4b; --claude: #7aa7e6; --good: #5cc48a; --due: #e0a948; --wait: #8d9a93; --bad: #f2776b; --done: #6b776f;
+  --in-bg: #1d251f; --out-bg: #1a2a20; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1040px; margin: 0 auto; padding: 18px 16px 72px; display: grid; gap: 16px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; }
+h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+h3 { font-size: 16.5px; font-weight: 700; }
+a { color: var(--accent); }
+button, select, textarea, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.muted { color: var(--muted); }
+.small { font-size: 13.5px; }
+.num { font-variant-numeric: tabular-nums; }
+
+.top { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: end; justify-content: space-between; }
+.fresh { color: var(--muted); font-size: 13px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; display: grid; gap: 2px; text-align: left; cursor: pointer; }
+.kpi:hover { border-color: var(--accent); }
+.kpi .v { font-family: var(--font-display); font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--c, var(--ink)); }
+.kpi .l { font-size: 13px; color: var(--muted); }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 9px 14px; font-weight: 700; cursor: pointer; color: var(--muted); white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.tab .badge { display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 6px; border-radius: 999px; background: var(--needs); color: #fff; font-size: 12px; text-align: center; }
+
+.btn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-weight: 600; font-size: 14px; }
+.btn:hover:not(:disabled) { border-color: var(--accent); }
+.btn:disabled { opacity: .55; cursor: default; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btn.warn { border-color: var(--due); }
+.btn.sm { padding: 4px 9px; font-size: 13px; }
+input[type="text"], input[type="number"], input[type="date"], input[type="email"], select, textarea { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+textarea { width: 100%; resize: vertical; line-height: 1.45; background: var(--bg); }
+label.f { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+label.f > input, label.f > select, label.f > textarea { font-weight: 400; color: var(--ink); }
+
+.banner { border: 1px solid var(--line); border-left: 4px solid var(--due); background: var(--surface); border-radius: 10px; padding: 11px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.banner.bad { border-left-color: var(--bad); }
+.banner p { margin: 0; }
+
+.bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chip { display: inline-flex; gap: 7px; align-items: center; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 11px 5px 9px; cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.chip .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c, var(--wait)); }
+.chip .n { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; }
+.chip[aria-pressed="true"] { border-color: var(--c, var(--accent)); box-shadow: inset 0 0 0 1px var(--c, var(--accent)); }
+.chip.zero { opacity: .5; }
+.how { color: var(--muted); font-size: 14px; margin: 0; max-width: 80ch; }
+
+.section { display: grid; gap: 10px; }
+.section-head { display: flex; gap: 10px; align-items: baseline; margin-top: 6px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--c, var(--wait)); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; }
+.card-head { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: start; justify-content: space-between; }
+.card-head .who { display: grid; gap: 2px; min-width: 0; }
+.meta { color: var(--muted); font-size: 13.5px; display: flex; flex-wrap: wrap; gap: 3px 12px; }
+.meta span { white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 700; color: var(--c, var(--wait)); background: color-mix(in srgb, var(--c, var(--wait)) 13%, transparent); white-space: nowrap; }
+.links { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: 13.5px; }
+.note { font-size: 13.5px; color: var(--muted); background: var(--soft); border-radius: 8px; padding: 6px 10px; }
+.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 6px 14px; }
+.fig { display: grid; }
+.fig .k { font-size: 12px; color: var(--muted); }
+.fig .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+.row-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.panel { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 10px; }
+
+.convo { display: grid; gap: 8px; }
+.msg { border-radius: 10px; padding: 9px 12px; border: 1px solid var(--line); }
+.msg.in { background: var(--in-bg); border-left: 3px solid var(--needs); }
+.msg.out { background: var(--out-bg); }
+.msg.sys { background: transparent; border-style: dashed; color: var(--muted); font-size: 13.5px; }
+.msg-head { display: flex; flex-wrap: wrap; gap: 3px 10px; justify-content: space-between; font-size: 13px; color: var(--muted); }
+.msg-head b { color: var(--ink); }
+.body { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: 6px; font-size: 14.5px; max-width: 74ch; }
+details > summary { cursor: pointer; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details.msg > summary .msg-head::after { content: "Show"; color: var(--accent); font-weight: 600; }
+details.msg[open] > summary .msg-head::after { content: "Hide"; }
+.quoted summary { color: var(--accent); font-size: 13px; margin-top: 6px; }
+.quoted .body { color: var(--muted); }
+.compose { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.compose .lbl { font-weight: 700; font-size: 14px; }
+.state { font-size: 13.5px; color: var(--muted); }
+.state.ok { color: var(--good); font-weight: 600; }
+.state.wait { color: var(--claude); font-weight: 600; }
+.state.err { color: var(--bad); font-weight: 600; }
+.confirm { background: color-mix(in srgb, var(--due) 12%, transparent); border-radius: 8px; padding: 8px 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+table.t { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.t th { text-align: left; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+table.t td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.empty { color: var(--muted); padding: 22px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; }
+.hidden { display: none !important; }
+#sf-gate { position: fixed; inset: 0; background: var(--bg); display: grid; place-items: center; z-index: 50; padding: 16px; }
+#sf-gate[hidden] { display: none; }
+#sf-gate form { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; display: grid; gap: 12px; width: min(380px, 100%); }
+#sf-gate input { width: 100%; }
+@media (max-width: 560px) { h1 { font-size: 22px; } .card { padding: 11px; } .kpi .v { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div id="sf-gate" hidden>
+  <form id="sf-gate-form">
+    <h1>Subdivide Finder</h1>
+    <p class="muted small" style="margin:0">Sign in with your Utopian CRM account.</p>
+    <label class="f">Email<input type="email" id="sf-email" autocomplete="username" required></label>
+    <label class="f">Password<input type="password" id="sf-pass" autocomplete="current-password" placeholder="Leave blank to get an email link"></label>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p class="small muted" id="sf-gate-msg" style="margin:0"></p>
+  </form>
+</div>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Subdivide Finder</h1>
+      <div class="muted small" id="subline">Utopian Capital · on-market land over 10 acres, screened for subdivide flips</div>
+    </div>
+    <div class="fresh"><span id="sf-who"></span><a href="#" id="sf-signout" class="small">Sign out</a><span id="fresh"></span><button class="btn sm" id="refresh-btn" type="button">Check Gmail now</button></div>
+  </header>
+  <div class="kpis" id="kpis"></div>
+  <div id="banner-slot"></div>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <main id="view"></main>
+</div>
+<script>
+(function () {
+  "use strict";
+  var ME = "jay@utopiancapitalinvest.com";
+  var TZ = "America/Chicago";
+  var GMAIL = "Gmail";
+  var PHONE = "(336) 962-2411";
+
+  var STATES = "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY".split(" ");
+  var SCREENS = [
+    { id: "Ready to offer", c: "var(--good)" },
+    { id: "Verify with agent", c: "var(--claude)" },
+    { id: "Need APN", c: "var(--due)" },
+    { id: "Frontage short", c: "var(--wait)" },
+    { id: "Steep", c: "var(--wait)" },
+    { id: "Fail", c: "var(--bad)" }
+  ];
+  var SCOLOR = {}; SCREENS.forEach(function (s) { SCOLOR[s.id] = s.c; });
+  var STAGES = [
+    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" },
+    { id: "offer", label: "Offer out" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
+  ];
+  var OFFER_STATUSES = ["Not submitted", "Submitted", "Countered", "Accepted", "Under contract", "Rejected", "Withdrawn"];
+  var BUCKETS = [
+    { id: "needs", label: "Agent replied: needs your call", short: "Needs your call", color: "var(--needs)" },
+    { id: "draft", label: "Reply written: review and send", short: "Ready to send", color: "var(--claude)" },
+    { id: "followup", label: "No reply yet: follow-up due", short: "Follow-up due", color: "var(--due)" },
+    { id: "awaiting", label: "Waiting on the agent", short: "Waiting", color: "var(--wait)" },
+    { id: "undelivered", label: "Not delivered", short: "Not delivered", color: "var(--bad)" },
+    { id: "done", label: "Done", short: "Done", color: "var(--done)" }
+  ];
+  var BMAP = {}; BUCKETS.forEach(function (b) { BMAP[b.id] = b; });
+
+  var TEMPLATE = [
+    "Good [morning/afternoon] [Agent first name],",
+    "",
+    "I'm looking at your listing at [Property Address] and we're very interested in it. We're a serious buyer and actively buying land in and around [County] County. I wanted to reach out and learn a little more about the tract.",
+    "",
+    "How is the access to the property? Is there public road frontage, or does it come in off a private drive? If there is public road frontage, how many feet is there? Are you aware of any easements on the tract for access?",
+    "",
+    "Do you have the parcel number or APN, so we can pull it up on the county GIS map? If there's a survey available, could you send that over as well?",
+    "",
+    "Do you know what utilities are available out there, or whether they would have to be extended to the property? And are there any perc sites present on the property?",
+    "",
+    "If you have any additional pictures or videos of the tract, please send them my way!",
+    "",
+    "Feel free to shoot me a text or give me a call at my work number, " + PHONE + ". I look forward to hearing from you!",
+    "",
+    "Thank you,",
+    "Jay"
+  ].join("\n");
+
+  var S = {
+    db: null, mcp: null, sample: null, dbState: "loading", dbError: null,
+    runs: [], deals: [], outreach: [], ideas: {},
+    threads: {}, extras: {}, watching: {}, searchWatch: null, searchKey: null,
+    gmail: { lastAt: null, error: null },
+    tab: "deals",
+    f: { run: "all", screen: "all", stage: "all", q: "" },
+    inboxFilter: "all",
+    open: {}, local: {}, busy: {}, err: {}, confirm: {}, composeOpen: {}
+  };
+
+  // ---------- helpers ----------
+  function h(tag, attrs) {
+    var el = document.createElement(tag);
+    if (attrs) for (var k in attrs) {
+      var v = attrs[k];
+      if (v == null || v === false) continue;
+      if (k === "text") el.textContent = v;
+      else if (k === "className") el.className = v;
+      else if (k === "value") el.value = v;
+      else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (var i = 2; i < arguments.length; i++) add(el, arguments[i]);
+    return el;
+  }
+  function add(el, c) {
+    if (c == null || c === false) return;
+    if (Array.isArray(c)) { c.forEach(function (x) { add(el, x); }); return; }
+    el.appendChild(typeof c === "string" || typeof c === "number" ? document.createTextNode(String(c)) : c);
+  }
+  function emailOf(s) { if (!s) return ""; var m = String(s).match(/<([^>]+)>/); return (m ? m[1] : String(s)).trim().toLowerCase(); }
+  function nameOf(s) { var m = String(s || "").match(/^\s*"?([^"<]+?)"?\s*</); return m ? m[1] : emailOf(s); }
+  function isMe(s) { return emailOf(s) === ME; }
+  function isBounce(s) { return /mailer-daemon|postmaster/i.test(String(s || "")); }
+  function firstName(n) { return String(n || "").trim().split(/[\s\/]+/)[0] || "there"; }
+  function fmtDT(iso) { if (!iso) return ""; var d = new Date(iso); if (isNaN(d)) return ""; return d.toLocaleString("en-US", { timeZone: TZ, weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }); }
+  function fmtDay(ymd) { if (!ymd) return ""; var d = new Date(ymd + "T12:00:00Z"); return isNaN(d) ? ymd : d.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" }); }
+  function todayCT() { return new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+  function ctParts() {
+    var p = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hour12: false, weekday: "short" }).formatToParts(new Date());
+    var o = {}; p.forEach(function (x) { o[x.type] = x.value; }); return { hour: (+o.hour) % 24, wd: o.weekday };
+  }
+  function offHours() { var p = ctParts(); return p.hour >= 19 || p.hour < 7 || p.wd === "Sat" || p.wd === "Sun"; }
+  function greeting() { return ctParts().hour < 12 ? "Good morning" : "Good afternoon"; }
+  function addBizDays(n) {
+    var d = new Date(todayCT() + "T12:00:00Z"), k = 0;
+    while (k < n) { d.setUTCDate(d.getUTCDate() + 1); var w = d.getUTCDay(); if (w !== 0 && w !== 6) k++; }
+    return d.toISOString().slice(0, 10);
+  }
+  function ago(ms) { var s = Math.max(0, Math.round((Date.now() - ms) / 1000)); if (s < 60) return "just now"; var m = Math.round(s / 60); if (m < 60) return m + " min ago"; var hr = Math.round(m / 60); if (hr < 24) return hr + " hr ago"; return Math.round(hr / 24) + " days ago"; }
+  function money(n) { return n == null || n === "" || isNaN(+n) ? "" : "$" + Math.round(+n).toLocaleString("en-US"); }
+  function pct(n) { return n == null || isNaN(+n) ? "" : (Math.round(+n * 1000) / 10) + "%"; }
+  function splitQuoted(t) {
+    t = String(t || "").replace(/\r\n/g, "\n");
+    var re = /(^|\n)[ \t>]*(On [\s\S]{0,300}?wrote:|-{2,}\s*Original Message\s*-{2,}|From: [^\n]+\n(?:Sent|Date): )/i;
+    var m = re.exec(t);
+    if (m && m.index > 10) return [t.slice(0, m.index).trim(), t.slice(m.index).trim()];
+    return [t.trim(), ""];
+  }
+  function sampleErr(e) {
+    var c = e && e.code;
+    if (c === "not_granted" || c === "sampling_disabled" || c === "not_declared") return "This account can't use Claude drafting. Make sure it's listed in sf_members.";
+    if (c === "rate_limited") return "Claude is busy or you've hit a usage limit. Try again in a few minutes.";
+    if (c === "session_expired") return "Sign in to Claude again, then try.";
+    if (c === "refused") return "Claude declined this one. Change the idea and try again.";
+    if (c === "invalid_json") return "Claude's answer came back malformed. Try again.";
+    if (c === "cancelled") return "";
+    return "Couldn't write it (" + (c || "error") + "). Try again.";
+  }
+  function gmailErr(e) {
+    var c = e && e.code;
+    if (c === "needs_reauth") return "Gmail isn't connected. Press Connect Gmail at the top, then send again. Nothing was sent.";
+    if (c === "server_not_connected") return "Gmail isn't connected to your Claude account. Nothing was sent.";
+    if (c === "not_in_manifest") return "Gmail is turned off for this page. Nothing was sent.";
+    if (c === "approval_required") return "Sending needs your approval in claude.ai. Nothing was sent.";
+    if (c === "tool_error") return "Gmail refused the email: " + (e.message || "unknown reason") + ".";
+    return "Gmail didn't confirm the send (" + (c || "error") + "). Check your Sent folder before trying again.";
+  }
+
+  // ---------- derived ----------
+  function convoFor(o) {
+    var list = [];
+    var main = S.threads[o.threadId];
+    if (main && main.msgs) list = list.concat(main.msgs);
+    Object.keys(S.extras).forEach(function (tid) { if (S.extras[tid] === o.threadId && S.threads[tid] && S.threads[tid].msgs) list = list.concat(S.threads[tid].msgs); });
+    var seen = {};
+    list = list.filter(function (m) { if (seen[m.id]) return false; seen[m.id] = 1; return true; });
+    list.sort(function (a, b) { return (a.t || 0) - (b.t || 0); });
+    return list;
+  }
+  function inboundOf(o) { return convoFor(o).filter(function (m) { return !isMe(m.from) && !isBounce(m.from); }); }
+  function bucketFor(o) {
+    var idea = S.ideas[o.threadId] || {};
+    var msgs = convoFor(o);
+    var inbound = msgs.filter(function (m) { return !isMe(m.from) && !isBounce(m.from); });
+    var last = msgs.filter(function (m) { return !isBounce(m.from); }).slice(-1)[0];
+    var bounced = o.delivery === "bounced" || msgs.some(function (m) { return isBounce(m.from); });
+    if (idea.state === "done") return "done";
+    var lastIn = inbound.length ? inbound[inbound.length - 1].t : 0;
+    var draftFresh = idea.state === "draft" && idea.draft && (!idea.draftedAt || Date.parse(idea.draftedAt) >= lastIn);
+    if (draftFresh) return "draft";
+    if (inbound.length && last && !isMe(last.from)) return "needs";
+    if (bounced && !inbound.length) return "undelivered";
+    var due = idea.followUpDue || o.followUpDue;
+    if (!inbound.length && due && todayCT() >= due) return "followup";
+    return "awaiting";
+  }
+  function dealById(id) { for (var i = 0; i < S.deals.length; i++) if (S.deals[i].id === id) return S.deals[i]; return null; }
+  function outreachForDeal(d) { return S.outreach.filter(function (o) { return o.dealId === d.id; }).sort(function (a, b) { return String(a.sentAt).localeCompare(String(b.sentAt)); }); }
+  function runLabel(r) {
+    if (!r) return "";
+    if (r.label) return r.label;
+    var c = (r.counties || []);
+    var names = r.allApproved ? "all CRM-approved counties" : c.join(", ");
+    return (r.state || "") + ": " + names;
+  }
+  function runsSorted() { return S.runs.slice().sort(function (a, b) { return String(b.requestedAt || "").localeCompare(String(a.requestedAt || "")); }); }
+  function inRun(x) { return S.f.run === "all" || x.runId === S.f.run || x.search === S.f.run; }
+
+  // ---------- render loop ----------
+  var pending = false;
+  function render() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); }); }
+
+  function draw() {
+    var active = document.activeElement, focusId = active && active.id, selS = null, selE = null;
+    if (active && (active.tagName === "TEXTAREA" || active.tagName === "INPUT")) { try { selS = active.selectionStart; selE = active.selectionEnd; } catch (e) {} }
+
+    var inboxRows = S.outreach.filter(inRun);
+    var counts = {}; BUCKETS.forEach(function (b) { counts[b.id] = 0; });
+    inboxRows.forEach(function (o) { counts[bucketFor(o)]++; });
+    var dealsAll = S.deals.filter(inRun);
+
+    // freshness + banner
+    var fr = document.getElementById("fresh"); fr.textContent = S.gmail.lastAt ? "Gmail checked " + ago(S.gmail.lastAt) : (S.mcp ? "Checking Gmail…" : "");
+    var slot = document.getElementById("banner-slot"); slot.textContent = ""; add(slot, bannerContent());
+
+    // KPIs
+    var queued = S.runs.filter(function (r) { return r.status === "queued" || r.status === "running"; }).length;
+    var ready = dealsAll.filter(function (d) { return d.screen === "Ready to offer" && d.stage !== "dead"; }).length;
+    var verify = dealsAll.filter(function (d) { return d.screen === "Verify with agent" && d.stage !== "dead"; }).length;
+    var offersOut = S.deals.filter(function (d) { return d.offer && (d.offer.status === "Submitted" || d.offer.status === "Countered"); }).length;
+    var k = document.getElementById("kpis"); k.textContent = "";
+    [
+      { v: queued, l: "Counties in queue", c: "var(--claude)", go: function () { goTab("counties"); } },
+      { v: ready, l: "Ready to offer", c: "var(--good)", go: function () { S.f.screen = "Ready to offer"; goTab("deals"); } },
+      { v: verify, l: "Verify with agent", c: "var(--claude)", go: function () { S.f.screen = "Verify with agent"; goTab("deals"); } },
+      { v: counts.needs, l: "Replies to answer", c: "var(--needs)", go: function () { S.inboxFilter = "needs"; goTab("inbox"); } },
+      { v: offersOut, l: "Offers out", c: "var(--due)", go: function () { goTab("offers"); } }
+    ].forEach(function (x) { k.appendChild(h("button", { className: "kpi", type: "button", style: "--c:" + x.c, onclick: x.go }, h("span", { className: "v", text: String(x.v) }), h("span", { className: "l", text: x.l }))); });
+
+    // tabs
+    var tabs = document.getElementById("tabs"); tabs.textContent = "";
+    [["deals", "Deals"], ["inbox", "Agent inbox"], ["offers", "Offers"], ["counties", "Counties"]].forEach(function (t) {
+      var b = h("button", { className: "tab", role: "tab", type: "button", id: "tab-" + t[0], "aria-selected": String(S.tab === t[0]), onclick: function () { goTab(t[0]); } }, t[1]);
+      if (t[0] === "inbox" && counts.needs) b.appendChild(h("span", { className: "badge", text: String(counts.needs) }));
+      tabs.appendChild(b);
+    });
+
+    var view = document.getElementById("view"); view.textContent = "";
+    if (S.dbState === "none") { view.appendChild(h("div", { className: "empty", text: "Sign in to load your data." })); return; }
+    if (S.dbState === "error") { view.appendChild(h("div", { className: "empty", text: "Couldn't load your data (" + (S.dbError || "unknown error") + "). Reload the page to try again." })); return; }
+    if (S.dbState === "loading") { view.appendChild(h("div", { className: "empty", text: "Loading…" })); return; }
+    if (S.tab === "deals") view.appendChild(dealsView(dealsAll));
+    else if (S.tab === "inbox") view.appendChild(inboxView(inboxRows, counts));
+    else if (S.tab === "offers") view.appendChild(offersView());
+    else view.appendChild(countiesView());
+
+    if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus(); if (selS != null && el.setSelectionRange) { try { el.setSelectionRange(selS, selE); } catch (e) {} } } }
+  }
+  function goTab(t) { S.tab = t; try { history.replaceState(null, "", "#" + t); } catch (e) { location.hash = t; } render(); }
+
+  function bannerContent() {
+    var e = S.gmail.error;
+    if (S.dbState === "ready" && !S.mcp) return h("div", { className: "banner" }, h("p", { text: "Gmail isn't available right now. Reload the page." }));
+    if (!e) return null;
+    var msg, btn = null, bad = true;
+    switch (e.code) {
+      case "needs_reauth": msg = "Connect your Gmail (" + ((window.SF_CONFIG || {}).GMAIL_ACCOUNT || "work account") + ") to load agent replies and send email. Google keeps you connected for about an hour at a time."; bad = false;
+        btn = h("button", { className: "btn primary", type: "button", text: "Connect Gmail", onclick: function () { window.SF.connectGmail().then(function () { S.gmail.error = null; render(); }).catch(function (err) { S.gmail.error = err && err.code ? err : { code: "upstream_error" }; render(); }); } }); break;
+      case "server_not_connected": msg = (e.message || "Gmail isn't set up yet.") + " See README step 4."; break;
+      case "not_in_manifest": msg = "Gmail is turned off for this page. Turn it on from the page's connector settings."; break;
+      case "approval_required": msg = "Subdivide Finder needs your OK to read your outreach threads in Gmail."; btn = h("button", { className: "btn primary", type: "button", onclick: allowGmail, text: "Allow Gmail" }); bad = false; break;
+      case "selection_required": msg = "You have more than one Gmail connected. Pick jay@utopiancapitalinvest.com when claude.ai asks."; bad = false; break;
+      case "blocked_by_policy": msg = "Your organization's policy blocks Gmail on this page."; break;
+      default: msg = "Gmail didn't answer the last check (" + (e.code || "error") + "). Showing what loaded before."; bad = false;
+    }
+    return h("div", { className: "banner" + (bad ? " bad" : "") }, h("p", { text: msg }), btn);
+  }
+
+  function runSelect(id) {
+    var sel = h("select", { id: id, "aria-label": "Search run", onchange: function (e) { S.f.run = e.target.value; render(); } });
+    sel.appendChild(h("option", { value: "all", text: "All searches", selected: S.f.run === "all" }));
+    runsSorted().forEach(function (r) { sel.appendChild(h("option", { value: r.id, text: runLabel(r), selected: S.f.run === r.id })); });
+    return sel;
+  }
+
+  // ---------- Deals ----------
+  function dealsView(rows) {
+    var root = h("div", { className: "section" });
+    var bar = h("div", { className: "bar" }, runSelect("deals-run"));
+    var stageSel = h("select", { id: "deals-stage", "aria-label": "Stage", onchange: function (e) { S.f.stage = e.target.value; render(); } },
+      h("option", { value: "all", text: "All stages", selected: S.f.stage === "all" }),
+      STAGES.map(function (s) { return h("option", { value: s.id, text: s.label, selected: S.f.stage === s.id }); }));
+    var q = h("input", { type: "text", id: "deals-q", placeholder: "Search address, agent, county", value: S.f.q, oninput: function (e) { S.f.q = e.target.value; render(); } });
+    add(bar, [stageSel, q]);
+    root.appendChild(bar);
+
+    var sc = {}; rows.forEach(function (d) { sc[d.screen] = (sc[d.screen] || 0) + 1; });
+    var chips = h("div", { className: "bar" });
+    chips.appendChild(h("button", { className: "chip", type: "button", "aria-pressed": String(S.f.screen === "all"), style: "--c: var(--accent)", onclick: function () { S.f.screen = "all"; render(); } }, h("span", { className: "dot" }), "All", h("span", { className: "n", text: String(rows.length) })));
+    SCREENS.forEach(function (s) {
+      chips.appendChild(h("button", { className: "chip" + (sc[s.id] ? "" : " zero"), type: "button", "aria-pressed": String(S.f.screen === s.id), style: "--c:" + s.c, onclick: function () { S.f.screen = S.f.screen === s.id ? "all" : s.id; render(); } }, h("span", { className: "dot" }), s.id, h("span", { className: "n", text: String(sc[s.id] || 0) })));
+    });
+    root.appendChild(chips);
+
+    var ql = S.f.q.trim().toLowerCase();
+    var list = rows.filter(function (d) {
+      if (S.f.screen !== "all" && d.screen !== S.f.screen) return false;
+      if (S.f.stage !== "all" && (d.stage || "new") !== S.f.stage) return false;
+      if (ql && ![d.address, d.county, d.agent && d.agent.name, d.agent && d.agent.brokerage].join(" ").toLowerCase().includes(ql)) return false;
+      return true;
+    });
+    var order = {}; SCREENS.forEach(function (s, i) { order[s.id] = i; });
+    list.sort(function (a, b) { return ((order[a.screen] || 9) - (order[b.screen] || 9)) || ((a.askVsHigh || 0) - (b.askVsHigh || 0)); });
+
+    if (!S.deals.length) { root.appendChild(h("div", { className: "empty", text: "No deals yet. Add counties on the Counties tab." })); return root; }
+    if (!list.length) { root.appendChild(h("div", { className: "empty", text: "No deals match these filters." })); return root; }
+    root.appendChild(h("p", { className: "how", text: "Sorted best first within each screen result. Open a deal to see the numbers, write the first email to the agent, or log an offer." }));
+    list.forEach(function (d) { root.appendChild(dealCard(d)); });
+    return root;
+  }
+
+  function dealCard(d) {
+    var color = SCOLOR[d.screen] || "var(--wait)";
+    var openId = "deal-" + d.id;
+    var isOpen = !!S.open[openId];
+    var threads = outreachForDeal(d);
+    var stageSel = h("select", { id: "stage-" + d.id, "aria-label": "Stage for " + d.address, onchange: function (e) { updateDeal(d, { stage: e.target.value }); } },
+      STAGES.map(function (s) { return h("option", { value: s.id, text: s.label, selected: (d.stage || "new") === s.id }); }));
+
+    var head = h("div", { className: "card-head" },
+      h("div", { className: "who" },
+        h("h3", { text: d.address }),
+        h("div", { className: "meta" },
+          h("span", { text: d.county + " Co., " + (d.state || "") }),
+          h("span", { className: "num", text: (d.acres != null ? d.acres + " ac" : "") }),
+          h("span", { className: "num", text: "Asking " + money(d.asking) + (d.ppa ? " (" + money(d.ppa) + "/ac)" : "") }),
+          d.offerHigh ? h("span", { className: "num", text: "2x offer " + money(d.offerLow) + " to " + money(d.offerHigh) }) : null,
+          d.agent && d.agent.name ? h("span", { text: d.agent.name }) : null)),
+      h("div", { className: "row-actions" }, h("span", { className: "pill", style: "--c:" + color, text: d.screen || "Unscreened" }), stageSel));
+
+    var actions = h("div", { className: "row-actions" },
+      h("button", { className: "btn sm", type: "button", "aria-expanded": String(isOpen), onclick: function () { S.open[openId] = !isOpen; render(); }, text: isOpen ? "Hide details" : "Details" }),
+      threads.length
+        ? h("button", { className: "btn sm", type: "button", onclick: function () { S.inboxFilter = "all"; S.f.q = ""; goTab("inbox"); setTimeout(function () { var el = document.getElementById("card-" + threads[0].threadId); if (el) el.scrollIntoView({ block: "start" }); }, 80); }, text: "Open agent thread (" + threads.length + ")" })
+        : h("button", { className: "btn sm primary", type: "button", onclick: function () { S.open[openId] = true; S.composeOpen[d.id] = true; render(); }, text: "Email agent" }),
+      d.links && d.links.zillow ? h("a", { className: "small", href: d.links.zillow, target: "_blank", rel: "noopener", text: "Zillow" }) : null,
+      d.links && d.links.redfin ? h("a", { className: "small", href: d.links.redfin, target: "_blank", rel: "noopener", text: "Redfin" }) : null,
+      d.links && d.links.landportal ? h("a", { className: "small", href: d.links.landportal, target: "_blank", rel: "noopener", text: "Land Portal" }) : null,
+      d.offer && d.offer.status && d.offer.status !== "Not submitted" ? h("span", { className: "pill", style: "--c: var(--due)", text: "Offer: " + d.offer.status + (d.offer.amount ? " " + money(d.offer.amount) : "") }) : null);
+
+    var card = h("article", { className: "card", id: "dcard-" + d.id, style: "--c:" + color }, head, actions);
+    if (d.notes && !isOpen) card.appendChild(h("div", { className: "small muted", text: d.notes.length > 220 ? d.notes.slice(0, 217) + "…" : d.notes }));
+    if (isOpen) {
+      card.appendChild(h("div", { className: "panel" },
+        d.notes ? h("div", { className: "note", text: d.notes }) : null,
+        h("div", { className: "figs" },
+          fig("Split", d.splitLots ? d.splitLots + " lots of ~" + d.lotSize + " ac" : ""),
+          fig("CRM multiple", d.crmLow ? d.crmLow + "x to " + d.crmHigh + "x" : ""),
+          fig("Months to sell out", d.months || ""),
+          fig("Asking vs 2x high", pct(d.askVsHigh)),
+          fig("Frontage needed", d.frontageNeeded ? d.frontageNeeded + " ft" : ""),
+          fig("Frontage listed", d.frontageListed || ""),
+          fig("Land Portal parcel", d.lpParcel || ""),
+          fig("LP acres", d.lpAcres || ""),
+          fig("LP frontage", d.lpFrontage ? Math.round(d.lpFrontage) + " ft" : ""),
+          fig("LP frontage check", d.lpCheck || ""),
+          fig("Landlocked", d.lpLandlocked || ""),
+          fig("LP match", d.lpMatch || ""),
+          fig("APN", d.apn || ""),
+          fig("CRM whole-tract value", money(d.crmValue)),
+          fig("Days on Zillow", d.days != null ? d.days : "")),
+        d.agent ? h("div", { className: "small" }, h("b", { text: "Listing agent: " }), [d.agent.name, d.agent.brokerage, d.agent.phone, d.agent.email].filter(Boolean).join(" · ") || "Unknown") : null,
+        S.composeOpen[d.id] || !threads.length ? firstEmailComposer(d) : null,
+        offerEditor(d)));
+    }
+    return card;
+  }
+  function fig(k, v) { return h("div", { className: "fig" }, h("span", { className: "k", text: k }), h("span", { className: "v", text: (v === "" || v == null) ? "—" : String(v) })); }
+
+  function updateDeal(d, patch) {
+    if (!S.db) return;
+    S.db.doc("deals/" + d.id).update(patch).catch(function (e) { S.err["deal-" + d.id] = "Couldn't save (" + (e && e.code) + ")."; render(); });
+  }
+
+  // First email to the agent
+  function firstEmailComposer(d) {
+    var key = "first-" + d.id;
+    var st = S.local[key] || (S.local[key] = { to: (d.agent && d.agent.email) || "", cc: "", subject: d.address, body: "" });
+    var wrap = h("div", { className: "compose" }, h("div", { className: "lbl", text: "First email to the listing agent" }));
+    if (!st.to && !(d.agent && d.agent.email)) {
+      wrap.appendChild(h("div", { className: "note" },
+        d.emailLookup === "requested" ? "Claude will look up the agent's email on the next queue run." : "No agent email on file yet. Type one if you have it, or ",
+        d.emailLookup === "requested" ? null : h("button", { className: "btn sm", type: "button", onclick: function () { updateDeal(d, { emailLookup: "requested", emailLookupAt: new Date().toISOString() }); }, text: "Ask Claude to find it" })));
+    }
+    var to = h("input", { type: "email", id: key + "-to", placeholder: "agent@example.com", value: st.to, oninput: function (e) { st.to = e.target.value; } });
+    var cc = h("input", { type: "text", id: key + "-cc", placeholder: "optional", value: st.cc, oninput: function (e) { st.cc = e.target.value; } });
+    var subj = h("input", { type: "text", id: key + "-subj", value: st.subject, oninput: function (e) { st.subject = e.target.value; } });
+    wrap.appendChild(h("div", { className: "grid2" }, h("label", { className: "f" }, "To", to), h("label", { className: "f" }, "CC", cc), h("label", { className: "f" }, "Subject", subj)));
+    var body = h("textarea", { id: key + "-body", rows: "12", placeholder: "Press Write it and Claude fills in your template, skipping anything the listing already answers and asking about any Land Portal mismatch.", oninput: function (e) { st.body = e.target.value; render(); } });
+    body.value = st.body;
+    wrap.appendChild(body);
+    var busy = S.busy[key];
+    var row = h("div", { className: "row-actions" },
+      h("button", { className: "btn", type: "button", disabled: !!busy || !S.sample, onclick: function () { writeFirst(d, st, key); }, text: busy === "writing" ? "Writing…" : (st.body ? "Rewrite it" : "Write it") }),
+      h("button", { className: "btn primary", type: "button", disabled: !!busy || !st.body.trim() || !st.to.trim() || !S.mcp, onclick: function () { trySend(key, function () { sendFirst(d, st, key); }); }, text: busy === "sending" ? "Sending…" : "Send from Gmail" }),
+      !S.sample ? h("span", { className: "state", text: "Claude writing isn't available in this view." }) : null,
+      S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null);
+    wrap.appendChild(row);
+    if (S.confirm[key]) wrap.appendChild(confirmRow(key));
+    return wrap;
+  }
+  function confirmRow(key) {
+    var p = ctParts();
+    return h("div", { className: "confirm" }, h("span", { text: "It's " + (p.wd === "Sat" || p.wd === "Sun" ? "the weekend" : "after hours") + " in Central time. Send anyway?" }),
+      h("button", { className: "btn sm primary", type: "button", onclick: function () { var f = S.confirm[key]; S.confirm[key] = null; f(); }, text: "Send now" }),
+      h("button", { className: "btn sm", type: "button", onclick: function () { S.confirm[key] = null; render(); }, text: "Wait" }));
+  }
+  function trySend(key, fn) { if (offHours()) { S.confirm[key] = fn; render(); } else fn(); }
+
+  function dealFacts(d) {
+    var f = [
+      "Address: " + d.address, "County: " + d.county + " County, " + (d.state || ""),
+      "Acres (listing): " + d.acres, "Asking: " + money(d.asking),
+      d.frontageListed ? "Frontage the listing states: " + d.frontageListed : "",
+      d.apn ? "APN on file: " + d.apn : "",
+      d.lpParcel ? "County parcel data (Land Portal): parcel " + d.lpParcel + ", " + d.lpAcres + " acres, " + (d.lpFrontage ? Math.round(d.lpFrontage) + " ft road frontage" : "frontage unknown") + (d.lpLandlocked && d.lpLandlocked !== "No" ? ", landlocked: " + d.lpLandlocked : "") : "",
+      d.lpMatch ? "Land Portal vs listing: " + d.lpMatch : "",
+      d.notes ? "Our screening notes: " + d.notes : "",
+      d.description ? "Listing description: " + String(d.description).slice(0, 2500) : ""
+    ];
+    return f.filter(Boolean).join("\n");
+  }
+  function writeFirst(d, st, key) {
+    if (!S.sample) return;
+    S.busy[key] = "writing"; S.err[key] = null; render();
+    var prompt = "You write first-contact emails from Jay at Utopian Capital, a land buyer, to listing agents.\n\n" +
+      "Jay's approved template:\n---\n" + TEMPLATE + "\n---\n\n" +
+      "Rules:\n- Start with \"" + greeting() + " " + firstName(d.agent && d.agent.name) + ",\" (it is " + (ctParts().hour < 12 ? "morning" : "afternoon") + " in Central time).\n" +
+      "- Keep the template's voice, order and closing paragraphs. Questions stay in prose paragraphs, never a list.\n" +
+      "- Drop or narrow any question the listing facts already answer, and thank them for what the listing already includes when natural.\n" +
+      "- If the county parcel data disagrees with the listing (acres, frontage, landlocked, parcel number), ask about that difference plainly, citing both numbers.\n" +
+      "- Use the real address and county. Never invent facts. No em dashes. Sign off exactly:\nThank you,\nJay\n\n" +
+      "Property facts:\n" + dealFacts(d) + "\n\n" +
+      "Reply with only JSON: {\"subject\": \"<the property address>\", \"body\": \"<the email>\"}";
+    S.sample.json(prompt, { cache: false }).then(function (r) {
+      S.busy[key] = null;
+      if (r && typeof r.body === "string") { st.body = r.body.replace(/—/g, ", "); if (r.subject) st.subject = String(r.subject); }
+      else S.err[key] = "Claude's answer came back malformed. Try again.";
+      render();
+    }).catch(function (e) { S.busy[key] = null; S.err[key] = sampleErr(e); render(); });
+  }
+  function splitList(s) { return String(s || "").split(/[,;\s]+/).map(function (x) { return x.trim(); }).filter(function (x) { return /@/.test(x); }); }
+  function sendFirst(d, st, key) {
+    if (!S.mcp) return;
+    var to = splitList(st.to), cc = splitList(st.cc);
+    if (!to.length) { S.err[key] = "Add the agent's email first."; render(); return; }
+    S.busy[key] = "sending"; S.err[key] = null; render();
+    var input = { to: to, subject: st.subject, body: st.body, includeSignature: true }; if (cc.length) input.cc = cc;
+    S.mcp.callTool(GMAIL, "send_message", input).then(function (r) {
+      var p = (r && r.payload) || {};
+      var tid = p.threadId || p.id;
+      var now = new Date().toISOString();
+      var doc = { dealId: d.id, search: d.runId, runId: d.runId, county: d.county, property: d.address, acres: d.acres, asking: d.asking,
+        agent: (d.agent && d.agent.name) || "", brokerage: (d.agent && d.agent.brokerage) || "", phone: (d.agent && d.agent.phone) || "",
+        to: to, cc: cc, channel: "Gmail", subject: st.subject, threadId: tid || "", delivery: "sent", sentAt: now, followUpDue: addBizDays(3),
+        sentBody: st.body, notes: "", links: d.links || {} };
+      var w = tid ? S.db.doc("outreach/" + tid).set(doc) : S.db.collection("outreach").add(doc);
+      return Promise.resolve(w).then(function () {
+        var patch = { stage: (d.stage && d.stage !== "new") ? d.stage : "contacting" };
+        if (!(d.agent && d.agent.email)) patch.agent = Object.assign({}, d.agent || {}, { email: to[0] });
+        return S.db.doc("deals/" + d.id).update(patch);
+      }).then(function () {
+        S.busy[key] = null; delete S.local[key]; S.composeOpen[d.id] = false; render();
+        if (tid) watchThread(tid);
+      });
+    }).catch(function (e) {
+      S.busy[key] = null;
+      S.err[key] = e && e.code ? gmailErr(e) : "Sent, but saving it here failed. It's in your Gmail Sent folder.";
+      render();
+    });
+  }
+
+  // Offer tracker
+  function offerEditor(d) {
+    var key = "offer-" + d.id;
+    var o = d.offer || {};
+    var st = S.local[key] || (S.local[key] = { amount: o.amount != null ? String(o.amount) : (d.offerHigh ? String(Math.round(d.offerHigh)) : ""), date: o.date || "", status: o.status || "Not submitted", counter: o.counter != null ? String(o.counter) : "", terms: o.terms || "" });
+    var wrap = h("div", { className: "compose" }, h("div", { className: "lbl", text: "Offer" }),
+      h("div", { className: "grid2" },
+        h("label", { className: "f" }, "Offer amount ($)", h("input", { type: "number", id: key + "-amt", value: st.amount, oninput: function (e) { st.amount = e.target.value; st.dirty = 1; } })),
+        h("label", { className: "f" }, "Date sent", h("input", { type: "date", id: key + "-date", value: st.date, oninput: function (e) { st.date = e.target.value; st.dirty = 1; } })),
+        h("label", { className: "f" }, "Status", h("select", { id: key + "-status", onchange: function (e) { st.status = e.target.value; st.dirty = 1; } }, OFFER_STATUSES.map(function (s) { return h("option", { value: s, text: s, selected: st.status === s }); }))),
+        h("label", { className: "f" }, "Their counter ($)", h("input", { type: "number", id: key + "-ctr", value: st.counter, oninput: function (e) { st.counter = e.target.value; st.dirty = 1; } }))),
+      h("label", { className: "f" }, "Terms and notes", h("textarea", { id: key + "-terms", rows: "2", value: st.terms, oninput: function (e) { st.terms = e.target.value; st.dirty = 1; } })),
+      h("div", { className: "row-actions" },
+        h("button", { className: "btn primary", type: "button", onclick: function () { saveOffer(d, st, key); }, text: S.busy[key] ? "Saving…" : "Save offer" }),
+        d.offerHigh ? h("span", { className: "state", text: "2x offer range " + money(d.offerLow) + " to " + money(d.offerHigh) + " · asking " + money(d.asking) }) : null,
+        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
+    return wrap;
+  }
+  function saveOffer(d, st, key) {
+    if (!S.db) return;
+    var offer = { amount: st.amount === "" ? null : +st.amount, date: st.date || null, status: st.status, counter: st.counter === "" ? null : +st.counter, terms: st.terms || "", updatedAt: new Date().toISOString() };
+    var patch = { offer: offer };
+    if (st.status === "Submitted" || st.status === "Countered") patch.stage = "offer";
+    if (st.status === "Accepted" || st.status === "Under contract") patch.stage = "contract";
+    if (st.status === "Rejected" || st.status === "Withdrawn") patch.stage = d.stage === "offer" ? "talking" : (d.stage || "talking");
+    S.busy[key] = true; S.err[key] = null; render();
+    S.db.doc("deals/" + d.id).update(patch).then(function () { S.busy[key] = false; delete S.local[key]; render(); })
+      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
+  }
+
+  // ---------- Inbox ----------
+  function inboxView(rows, counts) {
+    var root = h("div", { className: "section" });
+    root.appendChild(h("div", { className: "bar" }, runSelect("inbox-run")));
+    var chips = h("div", { className: "bar" });
+    chips.appendChild(h("button", { className: "chip", type: "button", "aria-pressed": String(S.inboxFilter === "all"), style: "--c: var(--accent)", onclick: function () { S.inboxFilter = "all"; render(); } }, h("span", { className: "dot" }), "All", h("span", { className: "n", text: String(rows.length) })));
+    BUCKETS.forEach(function (x) { chips.appendChild(h("button", { className: "chip" + (counts[x.id] ? "" : " zero"), type: "button", "aria-pressed": String(S.inboxFilter === x.id), style: "--c:" + x.color, onclick: function () { S.inboxFilter = S.inboxFilter === x.id ? "all" : x.id; render(); } }, h("span", { className: "dot" }), x.short, h("span", { className: "n", text: String(counts[x.id]) }))); });
+    root.appendChild(chips);
+    root.appendChild(h("p", { className: "how", text: "Type the main idea of your answer and press Write reply. Claude writes the full email in your voice; edit anything, then Send from Gmail." }));
+    if (!rows.length) { root.appendChild(h("div", { className: "empty", text: "No agent emails yet. Email an agent from the Deals tab." })); return root; }
+    var by = {}; rows.forEach(function (o) { var b = bucketFor(o); (by[b] = by[b] || []).push(o); });
+    BUCKETS.forEach(function (x) {
+      if (S.inboxFilter !== "all" && S.inboxFilter !== x.id) return;
+      var items = (by[x.id] || []).sort(function (a, b) { return (a.n || 0) - (b.n || 0) || String(a.sentAt).localeCompare(String(b.sentAt)); });
+      if (!items.length) return;
+      var sec = h("section", { className: "section", id: "sec-" + x.id }, h("div", { className: "section-head" }, h("h2", { text: x.label }), h("span", { className: "muted num", text: String(items.length) })));
+      items.forEach(function (o) { sec.appendChild(threadCard(o, x)); });
+      root.appendChild(sec);
+    });
+    if (S.inboxFilter !== "all" && !(by[S.inboxFilter] || []).length) root.appendChild(h("div", { className: "empty", text: "Nothing here right now." }));
+    return root;
+  }
+
+  function msgView(m) {
+    if (isBounce(m.from)) return h("div", { className: "msg sys", text: "Delivery failed · " + fmtDT(m.date) + " · " + (m.snippet || "Gmail could not deliver this email.") });
+    var out = isMe(m.from);
+    var parts = splitQuoted(m.body);
+    var head = h("div", { className: "msg-head" }, h("span", null, h("b", { text: out ? "You" : nameOf(m.from) }), out ? " to " + (m.to || []).join(", ") : " · " + emailOf(m.from)), h("span", { text: fmtDT(m.date) }));
+    var inner = [h("div", { className: "body", text: parts[0] || m.snippet || "" })];
+    if (parts[1]) { var qid = "q-" + m.id; var q = h("details", { className: "quoted", id: qid, open: !!S.open[qid], ontoggle: function () { S.open[qid] = q.open; } }, h("summary", { text: "Show quoted text" }), h("div", { className: "body", text: parts[1] })); inner.push(q); }
+    if (m.attachments && m.attachments.length) inner.push(h("div", { className: "small muted", text: "Attachments: " + m.attachments.join(", ") }));
+    if (out) { var did = "m-" + m.id; var d = h("details", { className: "msg out", id: did, open: !!S.open[did], ontoggle: function () { S.open[did] = d.open; } }, h("summary", null, head), inner); return d; }
+    return h("div", { className: "msg in" }, head, inner);
+  }
+
+  function threadCard(o, bucket) {
+    var th = S.threads[o.threadId];
+    var msgs = convoFor(o);
+    var gmailUrl = (th && th.viewUrl) || ("https://mail.google.com/mail/?authuser=" + ME + "#all/" + o.threadId);
+    var d = o.dealId ? dealById(o.dealId) : null;
+    var head = h("div", { className: "card-head" },
+      h("div", { className: "who" }, h("h3", { text: o.property }),
+        h("div", { className: "meta" }, h("span", { text: o.agent }), h("span", { text: o.brokerage }), o.phone ? h("span", { text: o.phone }) : null, h("span", { text: o.county + " Co." }),
+          o.acres ? h("span", { className: "num", text: o.acres + " ac · " + money(o.asking) }) : null)),
+      h("span", { className: "pill", style: "--c:" + bucket.color, text: bucket.short }));
+    var links = h("div", { className: "links" },
+      o.threadId ? h("a", { href: gmailUrl, target: "_blank", rel: "noopener", text: "Open in Gmail" }) : null,
+      o.links && o.links.zillow ? h("a", { href: o.links.zillow, target: "_blank", rel: "noopener", text: "Zillow" }) : null,
+      o.links && o.links.redfin ? h("a", { href: o.links.redfin, target: "_blank", rel: "noopener", text: "Redfin" }) : null,
+      d ? h("a", { href: "#deals", onclick: function (e) { e.preventDefault(); S.open["deal-" + d.id] = true; S.f.screen = "all"; S.f.stage = "all"; S.f.q = ""; goTab("deals"); setTimeout(function () { var el = document.getElementById("dcard-" + d.id); if (el) el.scrollIntoView({ block: "start" }); }, 80); }, text: "Deal numbers" }) : null,
+      h("span", { className: "muted", text: "Sent " + fmtDT(o.sentAt) + " to " + (o.to || []).join(", ") + ((o.cc && o.cc.length) ? " (cc " + o.cc.join(", ") + ")" : "") }));
+    var convo = h("div", { className: "convo" });
+    if (msgs.length) msgs.forEach(function (m) { convo.appendChild(msgView(m)); });
+    else {
+      var did = "s-" + o.threadId;
+      var det = h("details", { className: "msg out", id: did, open: !!S.open[did], ontoggle: function () { S.open[did] = det.open; } },
+        h("summary", null, h("div", { className: "msg-head" }, h("span", null, h("b", { text: "You" }), " · " + o.subject), h("span", { text: fmtDT(o.sentAt) }))),
+        h("div", { className: "body", text: o.sentBody || "" }));
+      convo.appendChild(det);
+      if (th && th.error) convo.appendChild(h("div", { className: "msg sys", text: "Replies couldn't load for this thread (" + th.error.code + ")." }));
+      else if (S.mcp && o.threadId && !th) convo.appendChild(h("div", { className: "msg sys", text: "Checking Gmail for replies…" }));
+    }
+    if (o.notes) convo.appendChild(h("div", { className: "note", text: o.notes }));
+    return h("article", { className: "card", id: "card-" + o.threadId, style: "--c:" + bucket.color }, head, links, convo, replyComposer(o, d, bucket));
+  }
+
+  function replyComposer(o, d, bucket) {
+    var id = o.threadId;
+    var idea = S.ideas[id] || {};
+    var key = "reply-" + id;
+    var st = S.local[key] || (S.local[key] = { gist: idea.gist || idea.text || "", draft: idea.draft || "" });
+    var wrap = h("div", { className: "compose" });
+    var label = bucket.id === "followup" || bucket.id === "awaiting" ? "Follow-up idea" : (bucket.id === "undelivered" ? "Next step" : "Your reply idea");
+    var gist = h("textarea", { id: key + "-gist", rows: "2", placeholder: placeholderFor(bucket.id, o), oninput: function (e) { st.gist = e.target.value; } });
+    gist.value = st.gist;
+    wrap.appendChild(h("label", { className: "lbl", "for": key + "-gist", text: label }));
+    wrap.appendChild(gist);
+    var busy = S.busy[key];
+    var row1 = h("div", { className: "row-actions" },
+      h("button", { className: "btn", type: "button", disabled: !!busy || !S.sample || o.delivery === "bounced" && !inboundOf(o).length, onclick: function () { writeReply(o, d, st, key); }, text: busy === "writing" ? "Writing…" : (st.draft ? "Rewrite" : "Write reply") }),
+      idea.state === "done"
+        ? h("button", { className: "btn ghost", type: "button", onclick: function () { setIdea(id, null); }, text: "Reopen" })
+        : h("button", { className: "btn ghost", type: "button", onclick: function () { setIdea(id, { state: "done", gist: st.gist, threadId: id, savedAt: new Date().toISOString() }); }, text: "No reply needed" }),
+      !S.sample ? h("span", { className: "state", text: "Claude writing isn't available in this view." }) : null);
+    wrap.appendChild(row1);
+    if (st.draft) {
+      var ta = h("textarea", { id: key + "-draft", rows: "10", oninput: function (e) { st.draft = e.target.value; } });
+      ta.value = st.draft;
+      wrap.appendChild(h("label", { className: "lbl", "for": key + "-draft", text: "Email to send (edit freely)" }));
+      wrap.appendChild(ta);
+      var recips = replyRecipients(o);
+      wrap.appendChild(h("div", { className: "row-actions" },
+        h("button", { className: "btn primary", type: "button", disabled: !!busy || !S.mcp || !recips.to.length, onclick: function () { trySend(key, function () { sendReply(o, st, key); }); }, text: busy === "sending" ? "Sending…" : "Send from Gmail" }),
+        h("span", { className: "state", text: recips.to.length ? "To " + recips.to.join(", ") + (recips.cc.length ? " · cc " + recips.cc.join(", ") : "") + " · in this thread" : "No address to reply to" })));
+    }
+    if (S.confirm[key]) wrap.appendChild(confirmRow(key));
+    if (S.err[key]) wrap.appendChild(h("div", { className: "state err", text: S.err[key] }));
+    else if (idea.state === "sent") wrap.appendChild(h("div", { className: "state ok", text: "Reply sent " + fmtDT(idea.sentAt) + "." }));
+    return wrap;
+  }
+  function placeholderFor(b, o) {
+    var first = firstName(o.agent);
+    if (b === "followup" || b === "awaiting") return "e.g. Nudge " + first + " for the survey and parcel numbers";
+    if (b === "undelivered") return "e.g. Text him instead; nothing to email";
+    return "e.g. Thank " + first + ", ask if the seller would take $X, and request the plat";
+  }
+  function replyRecipients(o) {
+    var inbound = inboundOf(o);
+    var lastIn = inbound[inbound.length - 1];
+    var to = lastIn ? [emailOf(lastIn.from)] : (o.to || []).slice();
+    var cc = (o.cc || []).concat(o.to || []).map(function (x) { return String(x).toLowerCase(); }).filter(function (x, i, a) { return x && to.indexOf(x) < 0 && x !== ME && a.indexOf(x) === i; });
+    return { to: to.filter(Boolean), cc: cc };
+  }
+  function threadText(o) {
+    var msgs = convoFor(o).filter(function (m) { return !isBounce(m.from); }).slice(-8);
+    if (!msgs.length) return "Jay's first email:\n" + (o.sentBody || "");
+    return msgs.map(function (m) { return (isMe(m.from) ? "JAY" : "AGENT (" + nameOf(m.from) + ")") + " · " + fmtDT(m.date) + ":\n" + splitQuoted(m.body)[0].slice(0, 3000); }).join("\n\n---\n\n");
+  }
+  function writeReply(o, d, st, key) {
+    if (!S.sample) return;
+    if (!st.gist.trim()) { S.err[key] = "Type the main idea first."; render(); return; }
+    S.busy[key] = "writing"; S.err[key] = null; render();
+    var followUp = !inboundOf(o).length;
+    var prompt = "You write emails for Jay at Utopian Capital, a land buyer, to a listing agent about one property. " +
+      (followUp ? "The agent hasn't replied yet; this is a polite follow-up in the same thread." : "This is Jay's reply in the same email thread.") + "\n\n" +
+      "Jay's main idea for this email:\n" + st.gist.trim() + "\n\n" +
+      "Thread so far (oldest first):\n" + threadText(o) + "\n\n" +
+      (d ? "Our numbers on the property (for context only; do not share them unless Jay's idea says to):\n" + dealFacts(d) + (d.offerHigh ? "\n2x offer range: " + money(d.offerLow) + " to " + money(d.offerHigh) : "") + "\n\n" : "") +
+      "Rules:\n- Say exactly what Jay's idea says, nothing more. Never invent prices, terms, dates or promises he didn't give.\n" +
+      "- Match the voice of Jay's first email: friendly, plain, professional, short. Prose, no lists unless Jay asks for one.\n" +
+      "- Open with \"" + greeting() + " " + firstName(o.agent) + ",\" and sign off exactly:\nThank you,\nJay\n- No em dashes. No subject line.\n\n" +
+      "Write only the email body.";
+    S.sample(prompt, { cache: false, onText: function (u) { st.draft = u.text; render(); } }).then(function (r) {
+      S.busy[key] = null; st.draft = String(r.text || "").replace(/—/g, ", ").trim();
+      setIdea(o.threadId, { threadId: o.threadId, gist: st.gist.trim(), draft: st.draft, state: "draft", draftedAt: new Date().toISOString(), property: o.property, agent: o.agent, search: o.search || o.runId || "" });
+      render();
+    }).catch(function (e) { S.busy[key] = null; if (e && e.text) st.draft = e.text; S.err[key] = sampleErr(e); render(); });
+  }
+  function sendReply(o, st, key) {
+    if (!S.mcp) return;
+    var r = replyRecipients(o);
+    var subj = /^re:/i.test(o.subject || "") ? o.subject : "Re: " + (o.subject || o.property);
+    S.busy[key] = "sending"; S.err[key] = null; render();
+    var input = { to: r.to, subject: subj, body: st.draft, includeSignature: true, replyThreadId: o.threadId }; if (r.cc.length) input.cc = r.cc;
+    S.mcp.callTool(GMAIL, "send_message", input).then(function () {
+      S.busy[key] = null;
+      var due = addBizDays(3);
+      setIdea(o.threadId, { threadId: o.threadId, gist: st.gist, draft: "", lastSent: st.draft, state: "sent", sentAt: new Date().toISOString(), followUpDue: due, property: o.property, agent: o.agent, search: o.search || o.runId || "" });
+      delete S.local[key];
+      var d = o.dealId ? dealById(o.dealId) : null;
+      if (d && (d.stage === "new" || d.stage === "contacting") && inboundOf(o).length) updateDeal(d, { stage: "talking" });
+      if (S.mcp.invalidate) S.mcp.invalidate(GMAIL, "get_thread").catch(function () {});
+      render();
+    }).catch(function (e) { S.busy[key] = null; S.err[key] = gmailErr(e); render(); });
+  }
+  function setIdea(id, body) {
+    if (!S.db) return;
+    var ref = S.db.doc("ideas/" + id);
+    (body ? ref.set(body) : ref.delete()).then(function () { if (!body) delete S.local["reply-" + id]; render(); })
+      .catch(function (e) { S.err["reply-" + id] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
+  }
+
+  // ---------- Offers ----------
+  function offersView() {
+    var root = h("div", { className: "section" });
+    var rows = S.deals.filter(function (d) { return d.offer && d.offer.status && d.offer.status !== "Not submitted"; })
+      .sort(function (a, b) { return String((b.offer || {}).date || "").localeCompare(String((a.offer || {}).date || "")); });
+    root.appendChild(h("p", { className: "how", text: "Every offer you've logged. Log or change one from the deal's details on the Deals tab." }));
+    if (!rows.length) { root.appendChild(h("div", { className: "empty", text: "No offers logged yet." })); return root; }
+    var t = h("table", { className: "t" }, h("thead", null, h("tr", null, ["Property", "Offer", "% of asking", "Sent", "Status", "Counter", "Terms and notes"].map(function (x) { return h("th", { text: x }); }))));
+    var tb = h("tbody");
+    rows.forEach(function (d) {
+      var o = d.offer;
+      tb.appendChild(h("tr", null,
+        h("td", null, h("a", { href: "#deals", onclick: function (e) { e.preventDefault(); S.open["deal-" + d.id] = true; S.f.screen = "all"; S.f.stage = "all"; S.f.q = ""; goTab("deals"); setTimeout(function () { var el = document.getElementById("dcard-" + d.id); if (el) el.scrollIntoView({ block: "start" }); }, 80); }, text: d.address }), h("div", { className: "small muted", text: d.county + " Co. · " + d.acres + " ac · asking " + money(d.asking) })),
+        h("td", { className: "num", text: money(o.amount) }),
+        h("td", { className: "num", text: o.amount && d.asking ? Math.round(o.amount / d.asking * 100) + "%" : "" }),
+        h("td", { text: fmtDay(o.date) }),
+        h("td", null, h("span", { className: "pill", style: "--c:" + (o.status === "Accepted" || o.status === "Under contract" ? "var(--good)" : o.status === "Rejected" || o.status === "Withdrawn" ? "var(--bad)" : "var(--due)"), text: o.status })),
+        h("td", { className: "num", text: money(o.counter) }),
+        h("td", { className: "small", text: o.terms || "" })));
+    });
+    t.appendChild(tb);
+    root.appendChild(h("div", { className: "tablewrap" }, t));
+    return root;
+  }
+
+  // ---------- Counties ----------
+  function countiesView() {
+    var root = h("div", { className: "section" });
+    var key = "newrun";
+    var st = S.local[key] || (S.local[key] = { state: "TN", counties: "", all: false, minAcres: "10", label: "" });
+    var form = h("form", { className: "card", style: "--c: var(--accent)", onsubmit: function (e) { e.preventDefault(); queueRun(st, key); } },
+      h("h3", { text: "Search new counties" }),
+      h("div", { className: "grid2" },
+        h("label", { className: "f" }, "State", h("select", { id: "nr-state", onchange: function (e) { st.state = e.target.value; } }, STATES.map(function (s) { return h("option", { value: s, text: s, selected: st.state === s }); }))),
+        h("label", { className: "f" }, "Minimum acres", h("input", { type: "number", id: "nr-min", min: "1", value: st.minAcres, oninput: function (e) { st.minAcres = e.target.value; } })),
+        h("label", { className: "f" }, "Name this search (optional)", h("input", { type: "text", id: "nr-label", placeholder: "e.g. NC Piedmont", value: st.label, oninput: function (e) { st.label = e.target.value; } }))),
+      h("label", { className: "f" }, "Counties (comma or one per line)", h("textarea", { id: "nr-counties", rows: "3", placeholder: "Dickson, Hickman, Cumberland", disabled: st.all || null, value: st.counties, oninput: function (e) { st.counties = e.target.value; } })),
+      h("label", { className: "small", style: "display:flex;gap:8px;align-items:center" }, h("input", { type: "checkbox", id: "nr-all", checked: st.all || null, onchange: function (e) { st.all = e.target.checked; render(); } }), "Use every county the CRM marks approved for subdivide in this state"),
+      h("div", { className: "row-actions" },
+        h("button", { className: "btn primary", type: "submit", disabled: !!S.busy[key], text: S.busy[key] ? "Adding…" : "Add to queue" }),
+        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null,
+        h("span", { className: "state", text: "Claude runs the queue at 12:47, 4:47 and 8:47 PM Central (your Mac on, Chrome open), or right away when you say \"run the queue\" in chat." })));
+    root.appendChild(form);
+
+    var runs = runsSorted();
+    root.appendChild(h("div", { className: "section-head" }, h("h2", { text: "Searches" }), h("span", { className: "muted num", text: String(runs.length) })));
+    if (!runs.length) { root.appendChild(h("div", { className: "empty", text: "No searches yet." })); return root; }
+    runs.forEach(function (r) {
+      var c = r.status === "done" ? "var(--good)" : r.status === "running" ? "var(--claude)" : r.status === "failed" ? "var(--bad)" : "var(--due)";
+      var sm = r.summary || {};
+      var dealsN = S.deals.filter(function (d) { return d.runId === r.id; }).length;
+      var card = h("article", { className: "card", style: "--c:" + c },
+        h("div", { className: "card-head" },
+          h("div", { className: "who" }, h("h3", { text: runLabel(r) }),
+            h("div", { className: "meta" }, h("span", { text: "Requested " + fmtDT(r.requestedAt) }), r.finishedAt ? h("span", { text: "Finished " + fmtDT(r.finishedAt) }) : null, r.minAcres ? h("span", { text: "Over " + r.minAcres + " ac" }) : null)),
+          h("span", { className: "pill", style: "--c:" + c, text: ({ queued: "Queued", running: "Running", done: "Done", failed: "Failed" })[r.status] || r.status })),
+        sm.listings != null ? h("div", { className: "figs" }, fig("Listings found", sm.listings), fig("Shortlisted", sm.shortlisted), fig("Ready to offer", sm.ready), fig("Verify with agent", sm.verify), fig("Need APN", sm.needApn), fig("Frontage short", sm.frontageShort)) : null,
+        r.note ? h("div", { className: "note", text: r.note }) : null,
+        h("div", { className: "row-actions" },
+          dealsN ? h("button", { className: "btn sm", type: "button", onclick: function () { S.f.run = r.id; S.f.screen = "all"; S.f.stage = "all"; goTab("deals"); }, text: "View " + dealsN + " deals" }) : null,
+          r.status === "done" || r.status === "failed" ? h("button", { className: "btn sm", type: "button", onclick: function () { S.db.doc("runs/" + r.id).update({ status: "queued", requestedAt: new Date().toISOString(), note: "Re-run requested." }).catch(function () {}); }, text: "Run again" }) : null,
+          r.status === "queued" ? h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.db.doc("runs/" + r.id).delete().catch(function () {}); }, text: "Remove from queue" }) : null,
+          r.workbook ? h("span", { className: "small muted", text: "Spreadsheet: " + r.workbook }) : null));
+      root.appendChild(card);
+    });
+    return root;
+  }
+  function queueRun(st, key) {
+    if (!S.db) return;
+    var counties = String(st.counties || "").split(/[\n,;]+/).map(function (x) { return x.replace(/county$/i, "").trim(); }).filter(Boolean);
+    if (!st.all && !counties.length) { S.err[key] = "Add at least one county, or tick the approved-counties box."; render(); return; }
+    S.busy[key] = true; S.err[key] = null; render();
+    var id = (st.state + "-" + (st.all ? "approved" : counties.join("-")) + "-" + todayCT()).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 120);
+    S.db.doc("runs/" + id).set({ state: st.state, counties: st.all ? [] : counties, allApproved: !!st.all, minAcres: +st.minAcres || 10, label: st.label.trim(), status: "queued", requestedAt: new Date().toISOString() })
+      .then(function () { S.busy[key] = false; delete S.local[key]; render(); })
+      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't add it (" + ((e && e.code) || "error") + ")."; render(); });
+  }
+
+  // ---------- Gmail live ----------
+  function parseThread(payload) {
+    var t = payload && (payload.thread || payload) || {};
+    var msgs = (t.messages || []).map(function (m) {
+      var date = m.date || (m.internalDate ? new Date(+m.internalDate).toISOString() : null);
+      return { id: m.id, from: m.sender || m.from || "", to: m.toRecipients || [], date: date, t: date ? Date.parse(date) : 0, subject: m.subject || "", snippet: m.snippet || "", body: m.plaintextBody || m.snippet || "",
+        attachments: (m.attachments || []).map(function (a) { return a.filename || a.name; }).filter(Boolean) };
+    });
+    return { msgs: msgs, viewUrl: t.viewUrl || null };
+  }
+  function noteFresh(r) { var at = r && r.cache && r.cache.storedAt ? r.cache.storedAt : Date.now(); if (!S.gmail.lastAt || at > S.gmail.lastAt) S.gmail.lastAt = at; }
+  var DENY = { needs_reauth: 1, server_not_connected: 1, blocked_by_policy: 1, approval_required: 1, not_in_manifest: 1, selection_required: 1 };
+  function onError(tid, e) {
+    e = e || { code: "upstream_error" };
+    if (tid) { S.threads[tid] = S.threads[tid] || {}; if (DENY[e.code]) S.threads[tid].msgs = null; S.threads[tid].error = e; }
+    S.gmail.error = e; render();
+  }
+  function watchThread(tid) {
+    if (!S.mcp || !tid || S.watching[tid]) return;
+    try {
+      S.watching[tid] = S.mcp.watchTool(GMAIL, "get_thread", { threadId: tid, messageFormat: "PLAIN_TEXT" }, function (ev) {
+        if (ev.type === "data") { var p = parseThread(ev.result && ev.result.payload); S.threads[tid] = { msgs: p.msgs, viewUrl: p.viewUrl, error: null }; S.gmail.error = null; noteFresh(ev.result); render(); }
+        else onError(tid, ev.error);
+      }, { cache: { staleTime: 120000, gcTime: 86400000 }, refetchInterval: 300000 });
+    } catch (e) { onError(tid, { code: "bad_request" }); }
+  }
+  function watchSearch() {
+    if (!S.mcp) return;
+    var emails = {}, earliest = null;
+    S.outreach.forEach(function (o) { (o.to || []).concat(o.cc || []).forEach(function (e) { emails[String(e).toLowerCase()] = o.threadId; }); var d = Date.parse(o.sentAt); if (!isNaN(d) && (earliest == null || d < earliest)) earliest = d; });
+    var list = Object.keys(emails).slice(0, 40); if (!list.length) return;
+    var after = new Date((earliest || Date.now()) - 86400000);
+    var ymd = after.getUTCFullYear() + "/" + String(after.getUTCMonth() + 1).padStart(2, "0") + "/" + String(after.getUTCDate()).padStart(2, "0");
+    var query = "from:(" + list.join(" OR ") + ") after:" + ymd;
+    if (S.searchKey === query) return;
+    if (S.searchWatch) { try { S.searchWatch(); } catch (e) {} }
+    S.searchKey = query;
+    try {
+      S.searchWatch = S.mcp.watchTool(GMAIL, "search_threads", { query: query, pageSize: 50 }, function (ev) {
+        if (ev.type !== "data") { onError(null, ev.error); return; }
+        noteFresh(ev.result);
+        var p = ev.result && ev.result.payload, threads = (p && p.threads) || [], tracked = {};
+        S.outreach.forEach(function (o) { tracked[o.threadId] = 1; });
+        threads.forEach(function (t) { if (!t || !t.id || tracked[t.id] || S.extras[t.id]) return; var owner = emails[emailOf(((t.messages || [])[0] || {}).sender)]; if (owner) { S.extras[t.id] = owner; watchThread(t.id); } });
+        render();
+      }, { cache: { staleTime: 120000, gcTime: 86400000 }, refetchInterval: 300000 });
+    } catch (e) { onError(null, { code: "bad_request" }); }
+  }
+  function startGmail() { if (!S.mcp) return; S.outreach.forEach(function (o) { watchThread(o.threadId); }); watchSearch(); }
+  function allowGmail() {
+    var first = S.outreach.filter(function (o) { return o.threadId; })[0]; if (!S.mcp || !first) return;
+    S.mcp.callTool(GMAIL, "get_thread", { threadId: first.threadId, messageFormat: "PLAIN_TEXT" }).then(function (r) {
+      var p = parseThread(r.payload); S.threads[first.threadId] = { msgs: p.msgs, viewUrl: p.viewUrl, error: null }; S.gmail.error = null; noteFresh(r); render();
+      if (S.mcp.invalidate) S.mcp.invalidate(GMAIL).catch(function () {});
+    }).catch(function (e) { onError(first.threadId, e); });
+  }
+  document.getElementById("refresh-btn").addEventListener("click", function () { if (!S.mcp) return; S.gmail.error = null; render(); if (S.mcp.invalidate) S.mcp.invalidate(GMAIL).catch(function () {}); });
+  setInterval(render, 60000);
+
+  // ---------- boot ----------
+  var hs = (location.hash || "").replace("#", ""); if (["deals", "inbox", "offers", "counties"].indexOf(hs) >= 0) S.tab = hs;
+  window.addEventListener("hashchange", function () { var x = (location.hash || "").replace("#", ""); if (["deals", "inbox", "offers", "counties"].indexOf(x) >= 0 && x !== S.tab) { S.tab = x; render(); } });
+  render();
+  if (!window.claude || typeof window.claude.use !== "function") { S.dbState = "none"; render(); return; }
+  var timer = null;
+  var loaded = { runs: 0, deals: 0, outreach: 0 };
+  function markLoaded(k, snap) { if (!snap.metadata.fromCache) loaded[k] = 1; if (loaded.runs && loaded.deals && loaded.outreach) { clearTimeout(timer); } if (S.dbState === "loading") S.dbState = "ready"; }
+  function docs(snap) { return snap.docs.map(function (d) { var x = Object.assign({}, d.data()); x.id = d.id; return x; }); }
+  window.claude.use("db").then(function (db) {
+    if (!db) { clearTimeout(timer); S.dbState = "none"; render(); return; }
+    S.db = db;
+    timer = setTimeout(function () { if (S.dbState === "loading") { S.dbState = "error"; S.dbError = "the data store didn't answer"; render(); } }, 15000);
+    var fail = function (e) { clearTimeout(timer); S.dbState = "error"; S.dbError = e && e.code; render(); };
+    db.collection("runs").onSnapshot(function (snap) { S.runs = docs(snap); markLoaded("runs", snap); render(); }, fail);
+    db.collection("deals").onSnapshot(function (snap) { S.deals = docs(snap); markLoaded("deals", snap); render(); }, fail);
+    db.collection("ideas").onSnapshot(function (snap) { var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data(); }); S.ideas = m; render(); }, function () {});
+    db.collection("outreach").onSnapshot(function (snap) {
+      S.outreach = docs(snap).map(function (x) { if (!x.threadId) x.threadId = x.id; return x; });
+      markLoaded("outreach", snap); render(); startGmail();
+    }, fail);
+  }).catch(function () { clearTimeout(timer); S.dbState = "none"; render(); });
+  window.claude.use("mcp").then(function (mcp) { S.mcp = mcp || null; render(); if (mcp) startGmail(); }).catch(function () { S.mcp = null; render(); });
+  window.claude.use("sample").then(function (s) { S.sample = s || null; render(); }).catch(function () { S.sample = null; });
+})();
+</script>
+</body>
+</html>
