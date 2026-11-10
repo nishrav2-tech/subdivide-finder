@@ -99,7 +99,7 @@ h2.sec .muted{font-family:var(--sans);font-size:13px;font-weight:500}
 /* new search form */
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:18px;box-shadow:var(--shadow-sm)}
 .form-grid{display:grid;grid-template-columns:120px 140px 1fr;gap:12px}
-label.f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2)}
+label.f,div.f{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:600;color:var(--ink-2)}
 input[type=text],input[type=email],input[type=number],input[type=date],input[type=password],select,textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);font-size:13.5px;font-weight:400;color:var(--ink)}
 textarea{resize:vertical;line-height:1.5}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
@@ -145,6 +145,7 @@ table.t .r{text-align:right;font-variant-numeric:tabular-nums}
 .dcard .m{font-size:12px;color:var(--ink-3)}
 .dcard .o{font-size:12px;color:var(--ink-2)}
 .dcard .tags{display:flex;gap:4px;flex-wrap:wrap}
+.dcard .tags .pill{white-space:normal}
 details.aside{margin-top:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg)}
 details.aside>summary{cursor:pointer;padding:12px 16px;font-weight:600;font-size:13px;color:var(--ink-2);list-style:none;display:flex;gap:8px;align-items:center}
 details.aside>summary::before{content:"▸";color:var(--ink-3);transition:transform .15s}
@@ -184,6 +185,10 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .prep-row .pe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .prep-row .pe input{flex:1;min-width:160px}
 .prep-later{margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
+.chip{border:1px solid var(--border-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+.chip:hover{border-color:var(--danger)}
+.chip.on{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
 .prep-later>summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);padding:4px 0}
 @media (max-width:640px){.prep-row{grid-template-columns:1fr auto}.prep-row .pv{grid-column:1/-1}.prep-row.edit{grid-template-columns:1fr}}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink);font-size:13px}
@@ -424,7 +429,21 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
   // ---------- render ----------
   var pending = false;
-  function render() { if (S.dragging) { S.renderAfterDrag = true; return; } if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); }); }
+  function editing() {
+    var a = document.activeElement;
+    if (!a || a.id === "board-q") return false;
+    return a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && a.type !== "checkbox" && a.type !== "radio" && a.type !== "file");
+  }
+  function render() {
+    if (S.dragging) { S.renderAfterDrag = true; return; }
+    if (S.pointerDown || editing()) { S.renderLater = true; return; } // don't rebuild the page under the cursor or caret
+    if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); });
+  }
+  function flushLater() { if (S.renderLater && !S.pointerDown && !editing()) { S.renderLater = false; render(); } }
+  document.addEventListener("pointerdown", function () { S.pointerDown = true; }, true);
+  document.addEventListener("pointerup", function () { setTimeout(function () { S.pointerDown = false; flushLater(); }, 0); }, true);
+  document.addEventListener("pointercancel", function () { S.pointerDown = false; flushLater(); }, true);
+  document.addEventListener("focusout", function () { setTimeout(flushLater, 0); }, true);
 
   // ---------- pipeline model ----------
   var COLS = [
@@ -899,7 +918,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     else line = d.offerHigh ? "2x offer " + compact(d.offerLow) + " to " + compact(d.offerHigh) : "";
     var rv = d.review || {};
     if (rv.resale) line = (line ? line + " · " : "") + "you: sells ~" + compact(rv.resale);
-    var killer = (rv.killers || "").trim();
+    var killer = (rv.killerTags && rv.killerTags.length) ? "Deal killer: " + rv.killerTags.join(", ") : ((rv.killers || "").trim() ? "Deal killer noted" : "");
     var pc = (c.id === "contact" || c.id === "contacted" || c.id === "talking" || c.id === "review") ? prepCount(d) : null;
     var card = h("button", { className: "dcard" + (S.route.deal === d.id ? " sel" : ""), type: "button", style: "--cc:" + c.dot, draggable: d._orphan ? null : "true",
       title: "Drag to another stage, or click to open", onclick: function () { go(r.id, d.id); },
@@ -912,7 +931,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       (flag || killer || (pc && pc.issue) || c.id === "contact") ? h("span", { className: "tags" },
         pc && pc.issue ? pill(pc.issue + (pc.issue === 1 ? " problem found" : " problems found"), "var(--warn-soft)", "var(--warn-ink)", true) : null,
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
-        killer ? pill("Deal killer noted", "var(--danger-soft)", "var(--danger)", true) : null,
+        killer ? pill(killer, "var(--danger-soft)", "var(--danger)", true) : null,
         c.id === "contact" ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null) : null);
     return card;
   }
@@ -1334,12 +1353,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
   var REVIEW_FIELDS = [
     { k: "basis", label: "How you got the resale number", rows: 2, ph: "Comps, per-lot price, who the buyer is" },
     { k: "defects", label: "Defects and problems", rows: 3, ph: "Flood zone, steep sections, power far away, bad access, easements, title issues" },
-    { k: "killers", label: "Deal killers (reasons you'd cancel)", rows: 2, ph: "What would make you walk away or cancel in due diligence" },
+    { k: "killers", label: "Deal killers (reasons you'd cancel)", rows: 2, ph: "Anything else that would make you walk away or cancel in due diligence", tags: true },
     { k: "notes", label: "Other notes", rows: 3, ph: "Site visit, calls, anything else" }
   ];
+  var KILLER_TAGS = ["Too steep", "False/no frontage", "No homesites", "Flood zone/wetland"];
   function reviewEditor(d) {
     var key = "review-" + d.id, rv = d.review || {};
-    var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", offerOpen: rv.offerOpen != null ? String(rv.offerOpen) : "", offerMax: rv.offerMax != null ? String(rv.offerMax) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", notes: rv.notes || "" });
+    var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", offerOpen: rv.offerOpen != null ? String(rv.offerOpen) : "", offerMax: rv.offerMax != null ? String(rv.offerMax) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", killerTags: (rv.killerTags || []).slice(), notes: rv.notes || "" });
     var touch = function () { st.dirty = 1; st.v = (st.v || 0) + 1; S.err[key] = null; };
     var saveIfDirty = function () { if (st.dirty && !S.busy[key]) saveReview(d, st, key); };
     var perAcre = st.resale && d.acres ? money(+st.resale / +d.acres) + "/ac" : "";
@@ -1355,10 +1375,18 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("label", { className: "f" }, "Max offer ($, walk-away)", h("input", { type: "number", id: key + "-offerMax", value: st.offerMax, placeholder: d.offerHigh ? String(Math.round(d.offerHigh)) : "", oninput: function (e) { st.offerMax = e.target.value; touch(); }, onblur: saveIfDirty }))),
       h("div", { className: "small muted", text: offerHint(d, st) }),
       REVIEW_FIELDS.map(function (f) {
+        if (f.tags) return h("div", { className: "f" }, h("span", { text: f.label }),
+          h("div", { className: "chips", role: "group", "aria-label": "Common deal killers" }, KILLER_TAGS.map(function (t) {
+            var on = st.killerTags.indexOf(t) >= 0;
+            return h("button", { type: "button", className: "chip" + (on ? " on" : ""), "aria-pressed": on ? "true" : "false", onclick: function () {
+              var i = st.killerTags.indexOf(t); if (i >= 0) st.killerTags.splice(i, 1); else st.killerTags.push(t);
+              touch(); saveReview(d, st, key); }, text: t });
+          })),
+          h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], "aria-label": "Other deal killers", oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
         return h("label", { className: "f" }, f.label, h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
       }),
       h("div", { className: "row-actions" },
-        h("button", { className: "btn primary", type: "button", onclick: function () { saveReview(d, st, key); }, text: "Save notes" }),
+        h("button", { className: "btn primary", type: "button", onclick: function () { if (!S.busy[key]) saveReview(d, st, key); }, text: "Save notes" }),
         status ? h("span", { className: "state", text: status }) : null,
         S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
   }
@@ -1373,7 +1401,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function saveReview(d, st, key) {
     if (!S.db) return;
     var num = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
-    var review = { resale: num(st.resale), offerOpen: num(st.offerOpen), offerMax: num(st.offerMax), lots: num(st.lots), basis: st.basis || "", defects: st.defects || "", killers: st.killers || "", notes: st.notes || "", updatedAt: new Date().toISOString() };
+    var review = { resale: num(st.resale), offerOpen: num(st.offerOpen), offerMax: num(st.offerMax), lots: num(st.lots), basis: st.basis || "", defects: st.defects || "", killers: st.killers || "", killerTags: (st.killerTags || []).slice(), notes: st.notes || "", updatedAt: new Date().toISOString() };
     var v0 = st.v || 0;
     S.busy[key] = true; S.err[key] = null; render();
     S.db.doc("deals/" + d.id).update({ review: review }).then(function () {
