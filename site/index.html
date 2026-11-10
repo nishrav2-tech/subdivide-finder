@@ -175,6 +175,15 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .compose{display:flex;flex-direction:column;gap:10px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.prep{display:flex;flex-direction:column;margin-top:8px}
+.prep-row{display:grid;grid-template-columns:170px 112px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.prep-row:first-child{border-top:0}
+.prep-row .pt{font-weight:600}
+.prep-row .pv{color:var(--ink-2);min-width:0}
+.prep-row.edit{grid-template-columns:170px 1fr}
+.prep-row .pe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.prep-row .pe input{flex:1;min-width:160px}
+@media (max-width:640px){.prep-row{grid-template-columns:1fr auto}.prep-row .pv{grid-column:1/-1}.prep-row.edit{grid-template-columns:1fr}}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink);font-size:13px}
 .convo{display:flex;flex-direction:column;gap:8px;margin:10px 0}
 .msg{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;background:var(--surface)}
@@ -225,7 +234,7 @@ ol.steps,ul.steps{padding-left:36px;display:flex;flex-direction:column;gap:8px;f
 .map-foot{padding:8px 20px;justify-content:space-between}
 @media (max-width:640px){.dr-map iframe{height:280px}.def{grid-template-columns:1fr}}
 
-.board{grid-template-columns:repeat(7,minmax(165px,1fr))!important}
+.board{grid-template-columns:repeat(8,minmax(160px,1fr))!important}
 .col.drop{outline:2px dashed var(--accent);outline-offset:-2px;background:var(--accent-soft)}
 .dcard[draggable=true]{cursor:grab}
 .dcard.dragging{opacity:.45}
@@ -286,7 +295,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   ];
   var SCOLOR = {}; SCREENS.forEach(function (s) { SCOLOR[s.id] = s.c; });
   var STAGES = [
-    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "ready", label: "Ready to offer" },
+    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "review", label: "Ready for review" }, { id: "approved", label: "Approved for offer" },
     { id: "offer", label: "Offer out" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
   ];
   var OFFER_STATUSES = ["Not submitted", "Submitted", "Countered", "Accepted", "Under contract", "Rejected", "Withdrawn"];
@@ -418,16 +427,17 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
   // ---------- pipeline model ----------
   var COLS = [
-    { id: "rejected", label: "Rejected", hint: "You passed on these. Drag one back out anytime.", dot: "#B8422E", pb: "var(--danger-soft)", pc: "var(--danger)", stage: "rejected" },
-    { id: "contact", label: "Contact agent", hint: "Passed the screens or needs a fact confirmed. Email the agent.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
+    { id: "rejected", label: "Rejected", hint: "Failed a screen, went dead, or you passed. Drag one back out anytime.", dot: "#B8422E", pb: "var(--danger-soft)", pc: "var(--danger)", stage: "rejected" },
+    { id: "contact", label: "Contact agent", hint: "Claude is gathering the review facts. First email to the agent comes next.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
     { id: "contacted", label: "Agent contacted", hint: "Email sent. Waiting on the agent.", dot: "#4F79A8", pb: "var(--info-soft)", pc: "var(--info-ink)", stage: "contacting" },
-    { id: "talking", label: "In conversation", hint: "The agent replied. Keep it moving.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
-    { id: "ready", label: "Ready to offer", hint: "Right before an offer. Fill in your review notes, then log the offer.", dot: "#4C8B3A", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "ready" },
+    { id: "talking", label: "In conversation", hint: "The agent replied. Claude is filling in what's still missing.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
+    { id: "review", label: "Ready for review", hint: "Every review fact is in. Do the quick manual review: approve or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
+    { id: "approved", label: "Approved for offer", hint: "Approved after review. Hire the agent and make the offer.", dot: "#3E9B2F", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "approved" },
     { id: "offer", label: "Offer made", hint: "Offer submitted or countered.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
     { id: "contract", label: "Under contract", hint: "Accepted. On to due diligence.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
   ];
-  var ASIDE = { id: "aside", label: "Set aside", dot: "#B9B1A1", pb: "var(--surface-2)", pc: "var(--ink-2)", stage: "dead" };
-  var CMAP = {}; COLS.concat([ASIDE]).forEach(function (c) { CMAP[c.id] = c; });
+  var CMAP = {}; COLS.forEach(function (c) { CMAP[c.id] = c; });
+  CMAP.ready = CMAP.review; CMAP.aside = CMAP.rejected; // older saved column ids
   var SCREEN_DOT = { "Ready to offer": "#4C8B3A", "Verify with agent": "#4F79A8", "Need APN": "#C69B4F", "Frontage short": "#B9B1A1", "Steep": "#A89F8E", "Fail": "#B8422E" };
 
   function runById(id) { for (var i = 0; i < S.runs.length; i++) if (S.runs[i].id === id) return S.runs[i]; return null; }
@@ -443,19 +453,19 @@ input[type=file]{font-size:12.5px;max-width:100%}
   }
   function dealsForRun(r) { return S.all.filter(function (d) { return d.runId === r.id; }); }
   function colFor(d) {
-    if (d.col && CMAP[d.col]) return d.col;
+    if (d.col && CMAP[d.col]) return CMAP[d.col].id;
     var os = d.offer && d.offer.status;
     if (os === "Accepted" || os === "Under contract" || d.stage === "contract") return "contract";
     if (os === "Submitted" || os === "Countered" || d.stage === "offer") return "offer";
-    if (d.stage === "rejected") return "rejected";
-    if (d.stage === "dead") return "aside";
-    if (d.stage === "ready") return "ready";
+    if (d.stage === "rejected" || d.stage === "dead") return "rejected";
+    if (d.stage === "approved") return "approved";
+    if (d.stage === "review" || d.stage === "ready") return "review";
     var th = outreachForDeal(d);
     if (th.length) return (d.stage === "talking" || th.some(function (o) { return inboundOf(o).length; })) ? "talking" : "contacted";
     if (d.stage === "talking") return "talking";
     if (d.stage === "contacting") return "contacted";
     if (d.screen === "Ready to offer" || d.screen === "Verify with agent" || d.screen === "Need APN") return "contact";
-    return "aside";
+    return "rejected";
   }
   var FLAGS = {
     needs: { id: "needs", t: "Reply needed", pb: "var(--danger-soft)", pc: "var(--danger)", rank: 0 },
@@ -467,7 +477,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     waiting: { id: "waiting", t: "Claude drafting", pb: "var(--surface-2)", pc: "var(--ink-2)", rank: 5 }
   };
   function dealFlag(d) {
-    var c = colFor(d); if (c === "aside" || c === "rejected") return null;
+    var c = colFor(d); if (c === "rejected") return null;
     var best = null, consider = function (k) { var f = FLAGS[k]; if (f && (!best || f.rank < best.rank)) best = f; };
     outreachForDeal(d).forEach(function (o) { consider(bucketFor(o)); });
     var fi = S.ideas["new-" + d.id]; if (fi && fi.state && fi.state !== "sent") consider(fi.state);
@@ -475,7 +485,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   }
   function runStats(r) {
     var ds = dealsForRun(r), c = {}, needs = 0;
-    COLS.concat([ASIDE]).forEach(function (x) { c[x.id] = 0; });
+    COLS.forEach(function (x) { c[x.id] = 0; });
     ds.forEach(function (d) { c[colFor(d)]++; var f = dealFlag(d); if (f && f.id === "needs") needs++; });
     return { deals: ds, c: c, needs: needs };
   }
@@ -624,12 +634,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
     root.appendChild(h("h2", { className: "sec", text: "How each property is screened" }));
     var screens = [
-      ["Passed screens", "Passes price, frontage, access and slope, and matches Land Portal. Goes to Contact agent; you move it to Ready to offer once you're about to offer."],
+      ["Passed screens", "Passes price, frontage, access and slope, and matches Land Portal. Goes to Contact agent while Claude gathers the review facts."],
       ["Verify with agent", "Looks good, but the listing and Land Portal disagree on acres, frontage, access or parcel number. The agent email asks about it."],
       ["Need APN", "No parcel number found on Redfin or Land Portal. The agent email asks for it."],
       ["Frontage short", "Not enough road frontage for the full split; only some lots fit."],
       ["Steep", "Good frontage but low buildable area. Walk the site before offering."],
-      ["Fail", "Landlocked, mostly unbuildable, deed restricted against splitting, or the wrong county."]
+      ["Fail", "Landlocked, mostly unbuildable, deed restricted against splitting, or the wrong county. Frontage short, Steep and Fail start in Rejected."]
     ];
     root.appendChild(h("div", { className: "panel" }, screens.map(function (s) { return h("div", { className: "def" }, pill(s[0], "var(--surface-2)", "var(--ink-2)", true), h("span", { text: s[1] })); })));
 
@@ -787,14 +797,14 @@ input[type=file]{font-size:12.5px;max-width:100%}
     card.appendChild(h("div", { className: "funnel" }, sm.listings != null ? [h("b", { text: String(sm.listings) }), "listings reviewed →", h("b", { text: String(n) }), "shortlisted"] : [h("b", { text: String(n) }), "properties"]));
     card.appendChild(stackBar(st));
     var lg = h("div", { className: "legend" });
-    COLS.concat([ASIDE]).forEach(function (c) { if (st.c[c.id]) lg.appendChild(h("span", null, h("i", { style: "background:" + c.dot }), c.label + " ", h("b", { text: String(st.c[c.id]) }))); });
+    COLS.forEach(function (c) { if (st.c[c.id]) lg.appendChild(h("span", null, h("i", { style: "background:" + c.dot }), c.label + " ", h("b", { text: String(st.c[c.id]) }))); });
     card.appendChild(lg);
     if (st.needs) card.appendChild(h("div", null, pill(st.needs + (st.needs === 1 ? " reply" : " replies") + " to answer", "var(--danger-soft)", "var(--danger)", true)));
     return card;
   }
   function stackBar(st) {
-    var n = st.deals.length || 1, bar = h("div", { className: "bar", role: "img", "aria-label": COLS.concat([ASIDE]).map(function (c) { return c.label + " " + st.c[c.id]; }).join(", ") });
-    COLS.concat([ASIDE]).forEach(function (c) { if (st.c[c.id]) bar.appendChild(h("span", { style: "width:" + (st.c[c.id] / n * 100) + "%;background:" + c.dot })); });
+    var n = st.deals.length || 1, bar = h("div", { className: "bar", role: "img", "aria-label": COLS.map(function (c) { return c.label + " " + st.c[c.id]; }).join(", ") });
+    COLS.forEach(function (c) { if (st.c[c.id]) bar.appendChild(h("span", { style: "width:" + (st.c[c.id] / n * 100) + "%;background:" + c.dot })); });
     return bar;
   }
 
@@ -855,7 +865,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var by = {}; ds.filter(match).forEach(function (d) { var c = colFor(d); (by[c] = by[c] || []).push(d); });
     var board = h("div", { className: "board", id: "board" });
     COLS.forEach(function (c) {
-      var items = (by[c.id] || []).sort(function (a, b) {
+      var items = (by[c.id] || []).sort(c.id === "rejected" ? function (a, b) { return rejRank(a) - rejRank(b) || String(a.address).localeCompare(String(b.address)); } : function (a, b) {
         var fa = dealFlag(a), fb = dealFlag(b);
         return ((fa ? fa.rank : 9) - (fb ? fb.rank : 9)) || ((a.askVsHigh || 0) - (b.askVsHigh || 0)) || String(a.address).localeCompare(String(b.address));
       });
@@ -866,28 +876,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("div", { className: "col-head" }, h("i", { style: "background:" + c.dot }), h("b", { text: c.label }), h("span", { className: "n", text: String(items.length) })),
         h("div", { className: "col-hint", text: c.hint }));
       if (!items.length) col.appendChild(h("div", { className: "col-empty", text: "Nothing here" }));
-      items.forEach(function (d) { col.appendChild(dealTile(d, c, r)); });
+      var rk = "rej-" + r.id, cap = (c.id === "rejected" && !S.open[rk] && !ql) ? 6 : items.length;
+      items.slice(0, cap).forEach(function (d) { col.appendChild(dealTile(d, c, r)); });
+      if (items.length > cap) col.appendChild(h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.open[rk] = true; render(); }, text: "Show all " + items.length }));
       board.appendChild(col);
     });
     root.appendChild(board);
 
-    var aside = (by.aside || []).sort(function (a, b) { return String(a.screen).localeCompare(String(b.screen)) || String(a.address).localeCompare(String(b.address)); });
-    if (aside.length) {
-      var det = h("details", { className: "aside", id: "aside-list", open: !!S.open.aside, ontoggle: function () { S.open.aside = det.open; },
-        ondragover: function (e) { if (!S.dragging) return; e.preventDefault(); det.classList.add("drop"); },
-        ondragleave: function (e) { if (!det.contains(e.relatedTarget)) det.classList.remove("drop"); },
-        ondrop: function (e) { e.preventDefault(); det.classList.remove("drop"); dropDeal(e.dataTransfer.getData("text/plain"), "aside"); } },
-        h("summary", null, "Set aside", h("span", { className: "muted", text: "(" + aside.length + ") failed a screen or marked dead. Open one to move it back." })));
-      var list = h("div", { className: "alist" });
-      aside.forEach(function (d) {
-        list.appendChild(h("button", { className: "arow", type: "button", onclick: function () { go(r.id, d.id); } },
-          h("span", null, h("b", { text: d.address }), h("span", { className: "muted small", text: " · " + d.county + " · " + (d.acres || "") + " ac" })),
-          h("span", null, pill(d.stage === "dead" ? "Marked dead" : (screenLabel(d.screen) || "Unscreened"), "var(--surface-2)", "var(--ink-2)")),
-          h("span", { className: "why", text: d.notes || "" })));
-      });
-      det.appendChild(list);
-      root.appendChild(det);
-    }
     return root;
   }
   function stat(l, v, s) { return h("div", { className: "stat" }, h("div", { className: "l", text: l }), h("div", { className: "v num", text: String(v) }), s ? h("div", { className: "s", text: s }) : null); }
@@ -896,10 +891,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var line;
     if (c.id === "offer" || c.id === "contract") line = d.offer && d.offer.amount ? "Offer " + money(d.offer.amount) + " · " + d.offer.status : "Offer logged";
     else if (c.id === "contacted" || c.id === "talking") line = d.agent && d.agent.name ? d.agent.name : "";
+    else if (c.id === "rejected") line = rejReason(d);
     else line = d.offerHigh ? "2x offer " + compact(d.offerLow) + " to " + compact(d.offerHigh) : "";
     var rv = d.review || {};
     if (rv.resale) line = (line ? line + " · " : "") + "you: sells ~" + compact(rv.resale);
     var killer = (rv.killers || "").trim();
+    var pc = (c.id === "contact" || c.id === "contacted" || c.id === "talking" || c.id === "review") ? prepCount(d) : null;
     var card = h("button", { className: "dcard" + (S.route.deal === d.id ? " sel" : ""), type: "button", style: "--cc:" + c.dot, draggable: d._orphan ? null : "true",
       title: "Drag to another stage, or click to open", onclick: function () { go(r.id, d.id); },
       ondragstart: function (e) { S.dragging = d.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setTimeout(function () { card.classList.add("dragging"); }, 0); },
@@ -907,8 +904,9 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "a", text: d.address }),
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
-      (d.files && d.files.length) ? h("span", { className: "m", text: d.files.length + (d.files.length === 1 ? " file" : " files") }) : null,
-      (flag || killer || c.id === "contact") ? h("span", { className: "tags" },
+      (pc || (d.files && d.files.length)) ? h("span", { className: "m", text: [pc ? "Review facts " + pc.known + "/" + pc.total : "", (d.files && d.files.length) ? d.files.length + (d.files.length === 1 ? " file" : " files") : ""].filter(Boolean).join(" · ") }) : null,
+      (flag || killer || (pc && pc.issue) || c.id === "contact") ? h("span", { className: "tags" },
+        pc && pc.issue ? pill(pc.issue + (pc.issue === 1 ? " problem found" : " problems found"), "var(--warn-soft)", "var(--warn-ink)", true) : null,
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
         killer ? pill("Deal killer noted", "var(--danger-soft)", "var(--danger)", true) : null,
         c.id === "contact" ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null) : null);
@@ -920,6 +918,74 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (!d || !to || d._orphan) { render(); return; }
     if (colFor(d) !== colId) { d.col = to.id; d.stage = to.stage; updateDeal(d, { col: to.id, stage: to.stage }); }
     render();
+  }
+
+  function rejRank(d) { return d.stage === "rejected" || d.col === "rejected" ? 0 : d.stage === "dead" ? 1 : 2; }
+  function rejReason(d) {
+    if (d.stage === "dead") return "Dead" + (d.deadReason ? ": " + d.deadReason : "");
+    if (d.stage === "rejected" || d.col === "rejected" || d.col === "aside") return "You rejected";
+    return "Failed screen: " + (screenLabel(d.screen) || "unscreened");
+  }
+
+  // ---------- Review prep: the facts Claude gathers before a manual review (deal.prep) ----------
+  var PREP_ITEMS = [
+    { k: "parcel", t: "Parcel ID and acreage" },
+    { k: "frontage", t: "Road frontage" },
+    { k: "access", t: "Legal access" },
+    { k: "water", t: "Water" },
+    { k: "electric", t: "Electric" },
+    { k: "septic", t: "Septic, perc or sewer" },
+    { k: "restrictions", t: "Restrictions and zoning" },
+    { k: "flood", t: "Flood, wetlands and slope" }
+  ];
+  var PREP_STATES = { ok: { t: "Known", pb: "var(--success-soft)", pc: "var(--success-ink)" }, issue: { t: "Problem", pb: "var(--warn-soft)", pc: "var(--warn-ink)" }, asked: { t: "Asked agent", pb: "var(--info-soft)", pc: "var(--info-ink)" }, missing: { t: "Missing", pb: "var(--surface-2)", pc: "var(--ink-2)" } };
+  function prepItem(d, k) { var it = d.prep && d.prep.items && d.prep.items[k]; return it && PREP_STATES[it.s] ? it : { s: "missing" }; }
+  function prepCount(d) {
+    var n = { known: 0, issue: 0, total: PREP_ITEMS.length };
+    PREP_ITEMS.forEach(function (p) { var s = prepItem(d, p.k).s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; });
+    return n;
+  }
+  function prepBox(d) {
+    var n = prepCount(d), p = d.prep || {};
+    var box = h("div", { className: "box" },
+      h("div", { className: "row", style: "justify-content:space-between" },
+        h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" }),
+        h("span", { className: "small muted", text: p.updatedAt ? "Claude updated " + fmtDT(p.updatedAt) : "Claude fills these in on each check" })));
+    var list = h("div", { className: "prep" });
+    PREP_ITEMS.forEach(function (pi) {
+      var it = prepItem(d, pi.k), st = PREP_STATES[it.s], ek = "prep-" + d.id + "-" + pi.k;
+      if (S.local[ek]) {
+        var ed = S.local[ek];
+        list.appendChild(h("div", { className: "prep-row edit" },
+          h("span", { className: "pt", text: pi.t }),
+          h("div", { className: "pe" },
+            h("select", { id: ek + "-s", "aria-label": pi.t + " status", onchange: function (e) { ed.s = e.target.value; } }, ["ok", "issue", "missing"].map(function (x) { return h("option", { value: x, text: PREP_STATES[x].t, selected: ed.s === x }); })),
+            h("input", { type: "text", id: ek + "-v", "aria-label": pi.t, placeholder: "What you found", value: ed.v, oninput: function (e) { ed.v = e.target.value; } }),
+            h("button", { className: "btn sm primary", type: "button", onclick: function () { savePrep(d, pi.k, ed, ek); }, text: S.busy[ek] ? "Saving…" : "Save" }),
+            h("button", { className: "btn sm ghost", type: "button", onclick: function () { delete S.local[ek]; render(); }, text: "Cancel" }),
+            S.err[ek] ? h("span", { className: "state err", text: S.err[ek] }) : null)));
+        return;
+      }
+      list.appendChild(h("div", { className: "prep-row" },
+        h("span", { className: "pt", text: pi.t }),
+        h("span", null, pill(st.t, st.pb, st.pc, true)),
+        h("span", { className: "pv" }, h("span", { text: it.v || "" }), it.src ? h("span", { className: "muted small", text: " · " + it.src }) : null),
+        h("button", { className: "btn sm ghost", type: "button", "aria-label": "Edit " + pi.t, onclick: function () { S.local[ek] = { s: it.s === "asked" ? "missing" : it.s, v: it.v || "" }; render(); }, text: "Edit" })));
+    });
+    box.appendChild(list);
+    if (p.summary) box.appendChild(h("div", { className: "note", style: "margin-top:10px", text: p.summary }));
+    return box;
+  }
+  function savePrep(d, k, ed, ek) {
+    if (!S.db) return;
+    var prep = JSON.parse(JSON.stringify(d.prep || {})); prep.items = prep.items || {};
+    prep.items[k] = { s: ed.s, v: (ed.v || "").trim(), src: "You, " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TZ }) };
+    var patch = { prep: prep };
+    var tmp = Object.assign({}, d, { prep: prep }), c = colFor(d);
+    if (!d.col && prepCount(tmp).known === PREP_ITEMS.length && (c === "contact" || c === "contacted" || c === "talking")) patch.stage = "review";
+    S.busy[ek] = true; S.err[ek] = null; render();
+    S.db.doc("deals/" + d.id).update(patch).then(function () { d.prep = prep; if (patch.stage) d.stage = patch.stage; S.busy[ek] = false; delete S.local[ek]; render(); })
+      .catch(function (e) { S.busy[ek] = false; S.err[ek] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
   }
 
   // ---------- Deal files (Supabase Storage bucket "sf-files", metadata in deal.files) ----------
@@ -1074,14 +1140,14 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var c = CMAP[colFor(d)], flag = dealFlag(d), threads = outreachForDeal(d);
     var close = function () { go(r.id); };
     var moveSel = h("select", { id: "move-" + d.id, "aria-label": "Move to stage", disabled: d._orphan || null, onchange: function (e) { var to = CMAP[e.target.value]; updateDeal(d, { col: to.id, stage: to.stage }); } },
-      COLS.concat([ASIDE]).map(function (x) { return h("option", { value: x.id, text: x.label, selected: x.id === c.id }); }));
+      COLS.map(function (x) { return h("option", { value: x.id, text: x.label, selected: x.id === c.id }); }));
     var head = h("div", { className: "dr-head" },
       h("button", { className: "x", id: "drawer-close", type: "button", "aria-label": "Close", onclick: close, text: "×" }),
       h("h2", { id: "drawer-title", text: d.address }),
       h("div", { className: "m num", text: [d.county ? d.county + " Co., " + (d.state || "") : "", d.acres != null ? d.acres + " ac" : "", d.asking ? "asking " + money(d.asking) + (d.ppa ? " (" + money(d.ppa) + "/ac)" : "") : ""].filter(Boolean).join(" · ") }),
       h("div", { className: "row" },
         pill(c.label, c.pb, c.pc, true),
-        d.screen ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null,
+        c.id === "rejected" ? pill(rejReason(d), "var(--surface-2)", "var(--ink-2)") : d.screen ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null,
         flag ? pill(flag.t, flag.pb, flag.pc) : null,
         h("span", { className: "links", style: "margin-left:auto" },
           d.links && d.links.zillow ? h("a", { href: d.links.zillow, target: "_blank", rel: "noopener", text: "Zillow" }) : null,
@@ -1090,6 +1156,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var body = h("div", { className: "dr-body" });
     body.appendChild(h("div", { className: "box row" }, h("label", { className: "lbl", "for": "move-" + d.id, style: "margin:0" }, "Stage"), h("div", { style: "flex:1;min-width:180px" }, moveSel),
       S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null));
+    if (!d._orphan) body.appendChild(prepBox(d));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d)));
     if (d.notes) body.appendChild(h("div", { className: "note" }, h("b", { text: "From the listing and agent emails: " }), d.notes));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "The numbers" }), h("div", { className: "figs" },
