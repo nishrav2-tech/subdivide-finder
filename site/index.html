@@ -998,6 +998,29 @@ input[type=file]{font-size:12.5px;max-width:100%}
         render();
       });
   }
+  // Files handed over from Claude's Gmail tab (same browser, Jay's own session). Only mail.google.com may send them.
+  function importFile(d, file, meta) {
+    var store = storage();
+    if (!store) return Promise.reject(new Error("storage unavailable"));
+    var cur = dealById(d.id) || d;
+    if ((cur.files || []).some(function (x) { return String(x.name).toLowerCase() === String(file.name).toLowerCase() && (!meta.messageId || x.messageId === meta.messageId); })) return Promise.resolve({ skipped: true });
+    var path = d.id + "/" + Date.now() + "-" + safeName(file.name);
+    return store.upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false }).then(function (r) {
+      if (r.error) throw r.error;
+      var rec = { name: file.name, path: path, size: file.size, type: file.type || "", kind: meta.kind || guessKind(file.name), source: "email", from: meta.from || "", receivedAt: meta.receivedAt || null, messageId: meta.messageId || null, addedAt: new Date().toISOString(), addedBy: "Claude" };
+      var latest = dealById(d.id) || d;
+      return S.db.doc("deals/" + d.id).update({ files: (latest.files || []).concat([rec]) }).then(function () { return { path: path }; });
+    });
+  }
+  window.addEventListener("message", function (e) {
+    if (e.origin !== "https://mail.google.com" || !e.data || e.data.type !== "sf-file") return;
+    var reply = function (x) { try { e.source.postMessage(Object.assign({ type: "sf-file-done", id: e.data.id }, x), e.origin); } catch (err) {} };
+    var d = dealById(e.data.dealId);
+    if (!d || d._orphan || !(e.data.blob instanceof Blob)) { reply({ ok: false, error: "unknown deal or no file" }); return; }
+    var file = new File([e.data.blob], e.data.name || "file", { type: e.data.blob.type || e.data.mime || "application/octet-stream" });
+    importFile(d, file, e.data.meta || {}).then(function (r) { reply({ ok: true, skipped: !!r.skipped, path: r.path }); render(); })
+      .catch(function (err) { reply({ ok: false, error: (err && (err.message || err.code)) || "error" }); });
+  });
   function openFile(f, key) {
     var store = storage(); if (!store) return;
     var w = window.open("", "_blank");
@@ -1275,7 +1298,11 @@ input[type=file]{font-size:12.5px;max-width:100%}
   if (!window.claude || typeof window.claude.use !== "function") { S.dbState = "none"; render(); return; }
   var timer = null;
   var loaded = { runs: 0, deals: 0, outreach: 0 };
-  function markLoaded(k, snap) { if (!snap.metadata.fromCache) loaded[k] = 1; if (loaded.runs && loaded.deals && loaded.outreach) { clearTimeout(timer); } if (S.dbState === "loading") S.dbState = "ready"; }
+  function markLoaded(k, snap) {
+    if (!snap.metadata.fromCache) loaded[k] = 1;
+    if (loaded.runs && loaded.deals && loaded.outreach) { clearTimeout(timer); if (!S.toldOpener && window.opener) { S.toldOpener = true; try { window.opener.postMessage({ type: "sf-ready" }, "https://mail.google.com"); } catch (e) {} } }
+    if (S.dbState === "loading") S.dbState = "ready";
+  }
   function docs(snap) { return snap.docs.map(function (d) { var x = Object.assign({}, d.data()); x.id = d.id; return x; }); }
   window.claude.use("db").then(function (db) {
     if (!db) { clearTimeout(timer); S.dbState = "none"; render(); return; }
