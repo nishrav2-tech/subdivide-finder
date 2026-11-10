@@ -1,6 +1,6 @@
 // Subdivide Finder adapter: gives the page the same three services it uses on claude.ai,
 // backed by your own accounts instead.
-//   db      -> Supabase tables sf_runs, sf_deals, sf_outreach, sf_ideas (live updates)
+//   db      -> Supabase tables sf_runs, sf_deals, sf_outreach, sf_ideas, sf_settings (live updates)
 //   mcp     -> Gmail API in the browser (Google sign-in popup, read + send only)
 //   sample  -> Supabase Edge Function sf-draft (Claude API)
 (function () {
@@ -9,7 +9,7 @@
   var sb = window.supabase.createClient(C.SUPABASE_URL, C.SUPABASE_ANON_KEY, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
   });
-  var TABLE = { runs: "sf_runs", deals: "sf_deals", outreach: "sf_outreach", ideas: "sf_ideas" };
+  var TABLE = { runs: "sf_runs", deals: "sf_deals", outreach: "sf_outreach", ideas: "sf_ideas", settings: "sf_settings" };
   var GMAIL_SCOPES = "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send";
 
   // ---------------- sign-in gate ----------------

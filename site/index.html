@@ -12,6 +12,7 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="config.js"></script>
 <script src="sf-adapter.js"></script>
+<script src="counties.js"></script>
 <style>
 :root{
   --bg:#F8F5EF; --surface:#FFFFFF; --surface-2:#F1EDE3;
@@ -187,6 +188,43 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .links{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;align-items:center}
 .tsep{height:1px;background:var(--border);margin:6px 0}
 
+/* nav tabs */
+.tabs{display:flex;gap:2px;margin-left:8px}
+.tabs a{padding:8px 12px;border-radius:var(--r-md);color:var(--ink-2);font-size:13.5px;font-weight:500;text-decoration:none;height:36px;display:flex;align-items:center}
+.tabs a:hover{background:var(--surface-2);color:var(--ink)}
+.tabs a[aria-current=page]{background:var(--ink);color:var(--surface)}
+/* criteria */
+.crit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.unit-wrap{display:flex;align-items:center;gap:6px}
+.unit-wrap input{flex:1;min-width:0}
+.unit{font-size:12px;font-weight:500;color:var(--ink-3);white-space:nowrap}
+.help{font-size:11.5px;font-weight:400;color:var(--ink-3);line-height:1.35}
+label.crit.changed input,label.crit.changed select{border-color:var(--gold);background:var(--gold-soft)}
+label.crit.changed .help{color:var(--gold-ink);font-weight:600}
+.crit-toggles{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+label.check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+label.check.changed{color:var(--gold-ink);font-weight:600}
+.panel h3+.crit-grid{margin-top:0}
+.def{display:grid;grid-template-columns:150px 1fr;gap:12px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--ink-2)}
+.def:last-child{border-bottom:0}
+ol.steps,ul.steps{padding-left:36px;display:flex;flex-direction:column;gap:8px;font-size:13.5px;color:var(--ink-2)}
+.crit-line{font-size:12.5px;color:var(--ink-2);margin:-8px 0 0;max-width:110ch}
+.crit-line .chg{color:var(--gold-ink);font-weight:600}
+/* county picker */
+.clist{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px;max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--r-md);padding:6px;background:var(--bg)}
+.citem{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:var(--r-sm);font-size:13px;cursor:pointer;background:var(--surface);border:1px solid transparent}
+.citem:hover{border-color:var(--border-strong)}
+.citem.on{border-color:var(--accent);background:var(--accent-soft)}
+.citem .cn{flex:1;font-weight:500}
+.citem .cl{font-size:11px;color:var(--ink-3)}
+.crit-box{margin-top:14px;border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;background:var(--bg)}
+.crit-toggle{display:flex;justify-content:space-between;gap:10px;width:100%;text-align:left;font-size:13px;flex-wrap:wrap}
+/* land portal map */
+.dr-map{background:var(--surface);border-bottom:1px solid var(--border)}
+.dr-map iframe{display:block;width:100%;height:360px;border:0;background:#0e2f33}
+.map-foot{padding:8px 20px;justify-content:space-between}
+@media (max-width:640px){.dr-map iframe{height:280px}.def{grid-template-columns:1fr}}
+
 /* sign-in gate */
 #sf-gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 #sf-gate form{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:32px;width:min(400px,100%);display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow-lg)}
@@ -211,6 +249,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 </div>
 <header class="topbar">
   <a class="brand" href="#/" aria-label="Subdivide Finder home"><img src="logo.png" alt="Utopian Capital"><span class="sep"></span><span class="name">Subdivide Finder</span></a>
+  <nav class="tabs" id="tabs" aria-label="Sections"><a href="#/" id="tab-searches">Searches</a><a href="#/criteria" id="tab-criteria">Criteria</a></nav>
   <div class="top-right"><span id="fresh"></span><button class="btn sm" id="refresh-btn" type="button">Check Gmail</button><span id="sf-who"></span><a href="#" id="sf-signout">Sign out</a></div>
 </header>
 <main class="page" id="view"></main>
@@ -272,7 +311,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     runs: [], deals: [], outreach: [], ideas: {},
     threads: {}, extras: {}, watching: {}, searchWatch: null, searchKey: null,
     gmail: { lastAt: null, error: null },
-    route: { search: null, deal: null }, showNew: false, q: "", all: [], lastDrawer: null,
+    route: { search: null, deal: null, page: "searches" }, showNew: false, settings: {}, settingsErr: null, crm: {}, q: "", all: [], lastDrawer: null,
     open: {}, local: {}, busy: {}, err: {}, confirm: {}, composeOpen: {}
   };
 
@@ -308,7 +347,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     var p = new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", hour12: false, weekday: "short" }).formatToParts(new Date());
     var o = {}; p.forEach(function (x) { o[x.type] = x.value; }); return { hour: (+o.hour) % 24, wd: o.weekday };
   }
-  function offHours() { var p = ctParts(); return p.hour >= 19 || p.hour < 7 || p.wd === "Sat" || p.wd === "Sun"; }
+  function offHours() { var p = ctParts(), o = outreachRules(); return p.hour >= (+o.sendCutoff || 19) || p.hour < 7 || (o.noWeekends !== false && (p.wd === "Sat" || p.wd === "Sun")); }
   function greeting() { return ctParts().hour < 12 ? "Good morning" : "Good afternoon"; }
   function addBizDays(n) {
     var d = new Date(todayCT() + "T12:00:00Z"), k = 0;
@@ -462,7 +501,8 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     if (location.hash !== hsh) location.hash = hsh; else { S.route = parseRoute(); render(); }
   }
   function parseRoute() {
-    var p = (location.hash || "").replace(/^#\/?/, "").split("/"), r = { search: null, deal: null };
+    var p = (location.hash || "").replace(/^#\/?/, "").split("/"), r = { search: null, deal: null, page: "searches" };
+    if (p[0] === "criteria") r.page = "criteria";
     if (p[0] === "search" && p[1]) { r.search = decodeURIComponent(p[1]); if (p[2]) r.deal = decodeURIComponent(p[2]); }
     return r;
   }
@@ -476,24 +516,237 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     buildAll();
 
     var fr = document.getElementById("fresh"); fr.textContent = S.gmail.lastAt ? "Gmail checked " + ago(S.gmail.lastAt) : (S.mcp ? "Checking Gmail…" : "");
+    var tc = document.getElementById("tab-criteria"), ts = document.getElementById("tab-searches");
+    if (tc) { if (S.route.page === "criteria") { tc.setAttribute("aria-current", "page"); ts.removeAttribute("aria-current"); } else { ts.setAttribute("aria-current", "page"); tc.removeAttribute("aria-current"); } }
     var view = document.getElementById("view"); view.textContent = "";
-    var slot = document.getElementById("drawer-slot"); slot.textContent = "";
+    var slot = document.getElementById("drawer-slot");
+    if (S.dbState !== "ready") { slot.textContent = ""; S.lastDrawer = null; }
     if (S.dbState === "none") { view.appendChild(h("div", { className: "empty", text: "Sign in to load your data." })); return; }
     if (S.dbState === "error") { view.appendChild(h("div", { className: "empty", text: "Couldn't load your data (" + (S.dbError || "unknown error") + "). Reload the page to try again." })); return; }
     if (S.dbState === "loading") { view.appendChild(h("div", { className: "empty", text: "Loading…" })); return; }
     add(view, bannerContent());
     var r = S.route.search ? runById(S.route.search) : null;
-    view.appendChild(r ? searchView(r) : searchesView());
+    view.appendChild(S.route.page === "criteria" ? criteriaView() : (r ? searchView(r) : searchesView()));
 
     var d = r && S.route.deal ? dealById(S.route.deal) : null;
-    if (d) {
+    if (d && S.lastDrawer === d.id && oldDr) {
+      var parts = drawerParts(d, r);
+      oldDr.replaceChild(parts.head, oldDr.querySelector(".dr-head"));
+      oldDr.replaceChild(parts.body, oldDr.querySelector(".dr-body"));
+      oldDr.scrollTop = drTop;
+    } else if (d) {
+      slot.textContent = "";
       slot.appendChild(drawerView(d, r));
-      var nd = document.getElementById("drawer"); if (nd && S.lastDrawer === d.id) nd.scrollTop = drTop;
-      if (S.lastDrawer !== d.id && nd) setTimeout(function () { var x = document.getElementById("drawer-close"); if (x && !focusId) x.focus(); }, 0);
       S.lastDrawer = d.id;
-    } else S.lastDrawer = null;
+      setTimeout(function () { var x = document.getElementById("drawer-close"); if (x && !focusId) x.focus(); }, 0);
+    } else { slot.textContent = ""; S.lastDrawer = null; }
     var nb = document.getElementById("board"); if (nb) nb.scrollLeft = bdLeft;
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus({ preventScroll: true }); if (selS != null && el.setSelectionRange) { try { el.setSelectionRange(selS, selE); } catch (e) {} } } }
+  }
+
+  // ---------- Criteria (defaults + per search) ----------
+  var CRIT_FIELDS = [
+    { k: "minAcres", label: "Minimum acres", unit: "ac", def: 10, help: "Smaller tracts don't subdivide well." },
+    { k: "maxAcres", label: "Maximum acres", unit: "ac", def: "", help: "Blank means no upper limit." },
+    { k: "targetMultiple", label: "Target multiple", unit: "x", def: 2, help: "Offer = asking x CRM multiple / target." },
+    { k: "discount", label: "Lot price discount", unit: "%", def: 10, help: "Applied to county lot prices in the CRM calculator." },
+    { k: "costs", label: "Subdivide and sale costs", unit: "%", def: 12, help: "Survey, roads, closing and commissions." },
+    { k: "maxLots", label: "Most lots per split", unit: "lots", def: 8, help: "Best split the calculator may pick." },
+    { k: "maxMonths", label: "Sell-out cap", unit: "months", def: 36, help: "Use the best split that sells out within this." },
+    { k: "frontageMin", label: "Frontage per lot, minimum", unit: "ft", def: 50, help: "Each lot needs the greater of this..." },
+    { k: "frontagePerAcre", label: "Frontage per acre of lot", unit: "ft/ac", def: 20, help: "...or this many feet per acre of lot." },
+    { k: "negotiableBand", label: "Negotiable band", unit: "%", def: 20, help: "Asking up to this far above the 2x offer still makes the list." },
+    { k: "lpTolerance", label: "Land Portal acreage match", unit: "%", def: 15, help: "Pin counts as a match within this of listing acres." }
+  ];
+  var CRIT_TOGGLES = [
+    { k: "dropAbove75", label: "Drop listings priced above the county's 75th percentile $/ac", def: true },
+    { k: "tn5Acre", label: "Use Tennessee's 5-acre subdivision exemption when splitting", def: true },
+    { k: "lpRequired", label: "Every parcel must match Land Portal before it can be Ready to offer", def: true }
+  ];
+  var OUT_FIELDS = { sendCutoff: 19, noWeekends: true, followUpDays: 3 };
+  function baseCriteria() { var c = {}; CRIT_FIELDS.forEach(function (f) { c[f.k] = f.def; }); CRIT_TOGGLES.forEach(function (f) { c[f.k] = f.def; }); c.notes = ""; return c; }
+  function savedSettings() { return S.settings.criteria || {}; }
+  function defaultCriteria() { return Object.assign(baseCriteria(), savedSettings().criteria || {}); }
+  function outreachRules() { return Object.assign({}, OUT_FIELDS, savedSettings().outreach || {}); }
+  function critValueText(f, v) { return (v === "" || v == null) ? "no limit" : v + (f.unit === "%" ? "%" : f.unit === "x" ? "x" : " " + f.unit); }
+  function critDiff(c, base) {
+    var out = [];
+    CRIT_FIELDS.forEach(function (f) { if (String(c[f.k] == null ? "" : c[f.k]) !== String(base[f.k] == null ? "" : base[f.k])) out.push(f.k); });
+    CRIT_TOGGLES.forEach(function (f) { if (!!c[f.k] !== !!base[f.k]) out.push(f.k); });
+    if ((c.notes || "").trim()) out.push("notes");
+    return out;
+  }
+  function critSummary(c) {
+    var fr = "frontage " + c.frontageMin + " ft or " + c.frontagePerAcre + " ft/ac per lot";
+    return [c.minAcres + (c.maxAcres ? " to " + c.maxAcres : "+") + " ac", c.targetMultiple + "x target", "max " + c.maxLots + " lots", c.maxMonths + "-month sell-out", fr].join(" · ");
+  }
+  function critInputs(c, prefix, base, onChange) {
+    var grid = h("div", { className: "crit-grid" });
+    CRIT_FIELDS.forEach(function (f) {
+      var changed = base && String(c[f.k] == null ? "" : c[f.k]) !== String(base[f.k] == null ? "" : base[f.k]);
+      grid.appendChild(h("label", { className: "f crit" + (changed ? " changed" : "") }, f.label,
+        h("span", { className: "unit-wrap" }, h("input", { type: "number", step: "any", id: prefix + f.k, value: c[f.k] == null ? "" : String(c[f.k]), placeholder: f.def === "" ? "none" : "", oninput: function (e) { var v = e.target.value; c[f.k] = v === "" ? "" : +v; if (onChange) onChange(); } }), h("span", { className: "unit", text: f.unit })),
+        h("span", { className: "help", text: changed ? "Default is " + critValueText(f, base[f.k]) : f.help })));
+    });
+    var tg = h("div", { className: "crit-toggles" });
+    CRIT_TOGGLES.forEach(function (f) {
+      var changed = base && !!c[f.k] !== !!base[f.k];
+      tg.appendChild(h("label", { className: "check" + (changed ? " changed" : "") }, h("input", { type: "checkbox", id: prefix + f.k, checked: c[f.k] ? true : null, onchange: function (e) { c[f.k] = e.target.checked; if (onChange) onChange(); } }), f.label));
+    });
+    return [grid, tg];
+  }
+
+  function criteriaView() {
+    var key = "crit-default";
+    var st = S.local[key] || (S.local[key] = { c: defaultCriteria(), o: outreachRules() });
+    var saved = savedSettings();
+    var root = h("div");
+    root.appendChild(h("div", { className: "page-head" },
+      h("div", null, h("h1", { text: "Criteria and process" }), h("p", { text: "These are the defaults every new search starts with. Change them here to change the default, or adjust them on a single search when you start it." }))));
+    if (S.settingsErr) root.appendChild(h("div", { className: "alert info" }, h("p", { text: "Saved defaults aren't available yet (the settings table hasn't been created). You're seeing the original defaults; saving will work once it exists." })));
+
+    var form = h("form", { className: "panel", onsubmit: function (e) { e.preventDefault(); saveDefaults(st, key); } },
+      h("h3", { text: "Screening criteria" }),
+      critInputs(st.c, "dc-", baseCriteria(), function () { st.dirty = true; }),
+      h("label", { className: "f", style: "margin-top:12px" }, "Standing instructions for every search (optional)", h("textarea", { id: "dc-notes", rows: "2", placeholder: "e.g. Skip anything inside city limits", value: st.c.notes || "", oninput: function (e) { st.c.notes = e.target.value; st.dirty = true; } })),
+      h("h3", { text: "Agent outreach", style: "margin-top:18px" }),
+      h("div", { className: "crit-grid" },
+        h("label", { className: "f crit" }, "Don't send after", h("select", { id: "do-cutoff", onchange: function (e) { st.o.sendCutoff = +e.target.value; st.dirty = true; } },
+          [17, 18, 19, 20, 21].map(function (hr) { return h("option", { value: String(hr), text: (hr - 12) + ":00 PM Central", selected: st.o.sendCutoff === hr }); })),
+          h("span", { className: "help", text: "The page asks before sending later than this." })),
+        h("label", { className: "f crit" }, "Follow up after", h("span", { className: "unit-wrap" }, h("input", { type: "number", id: "do-follow", min: "1", value: String(st.o.followUpDays), oninput: function (e) { st.o.followUpDays = +e.target.value || 3; st.dirty = true; } }), h("span", { className: "unit", text: "business days" })),
+          h("span", { className: "help", text: "When a no-reply thread shows Follow-up due." }))),
+      h("label", { className: "check" }, h("input", { type: "checkbox", id: "do-weekends", checked: st.o.noWeekends ? true : null, onchange: function (e) { st.o.noWeekends = e.target.checked; st.dirty = true; } }), "Ask before sending on weekends"),
+      h("div", { className: "row", style: "margin-top:16px" },
+        h("button", { className: "btn primary", type: "submit", disabled: !!S.busy[key], text: S.busy[key] ? "Saving…" : "Save as default" }),
+        h("button", { className: "btn ghost", type: "button", onclick: function () { S.local[key] = { c: baseCriteria(), o: Object.assign({}, OUT_FIELDS), dirty: true }; render(); }, text: "Reset to original" }),
+        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : h("span", { className: "state", text: saved.updatedAt ? "Default saved " + fmtDT(saved.updatedAt) + "." : "Using the original defaults." })));
+    root.appendChild(form);
+
+    root.appendChild(h("h2", { className: "sec", text: "How each property is screened" }));
+    var screens = [
+      ["Ready to offer", "Passes price, frontage, access and slope, and matches Land Portal."],
+      ["Verify with agent", "Looks good, but the listing and Land Portal disagree on acres, frontage, access or parcel number. The agent email asks about it."],
+      ["Need APN", "No parcel number found on Redfin or Land Portal. The agent email asks for it."],
+      ["Frontage short", "Not enough road frontage for the full split; only some lots fit."],
+      ["Steep", "Good frontage but low buildable area. Walk the site before offering."],
+      ["Fail", "Landlocked, mostly unbuildable, deed restricted against splitting, or the wrong county."]
+    ];
+    root.appendChild(h("div", { className: "panel" }, screens.map(function (s) { return h("div", { className: "def" }, pill(s[0], "var(--surface-2)", "var(--ink-2)", true), h("span", { text: s[1] })); })));
+
+    root.appendChild(h("h2", { className: "sec", text: "How a search runs" }));
+    var steps = [
+      "You start a search here with the counties and criteria. It waits in the queue.",
+      "Claude runs the queue at 12:47, 4:47 and 8:47 PM Central (your Mac on, Chrome open), or right away when you say \"run the queue\" in chat.",
+      "Pull land listings from Zillow and Redfin over the minimum acres and merge them. Land Portal's for-sale list is only used to look up parcels.",
+      "Run each tract through the CRM Markets subdivide calculator with the criteria above to get the best split and the 2x offer range.",
+      "Price screen against the county's 25th to 75th percentile $/ac. Keep Viable deals (asking at or under the 2x offer) and Negotiable ones inside the band.",
+      "Find the parcel number (Redfin public records, then Land Portal), then check frontage, landlocked, slope and flood in Land Portal.",
+      "Read each listing, save the description, and find the listing agent's own email.",
+      "Build one spreadsheet per search (Zillow, Redfin and Land Portal links right after Address) and post every shortlisted tract here.",
+      "On a property, Claude drafts the first email to the agent. You read it and press Send. Replies show up on the property and Claude drafts answers from your main idea.",
+      "Log offers on the property. You submit them yourself; the page only tracks them."
+    ];
+    root.appendChild(h("ol", { className: "panel steps" }, steps.map(function (s) { return h("li", { text: s }); })));
+
+    root.appendChild(h("h2", { className: "sec", text: "Agent email rules" }));
+    var rules = [
+      "Sent from " + ME + " with your work number " + PHONE + ".",
+      "Read the whole listing first and skip any question it already answers.",
+      "Ask about any difference between the listing and Land Portal, citing both numbers.",
+      "If no agent email can be found, use the Redfin or Zillow request form, signed \"Thank you, Jay\".",
+      "One agent with several properties gets one email per property, and the later ones mention the earlier email.",
+      "Every email is previewed here and sent only when you press Send.",
+      "No em dashes."
+    ];
+    root.appendChild(h("ul", { className: "panel steps" }, rules.map(function (s) { return h("li", { text: s }); })));
+    return root;
+  }
+  function saveDefaults(st, key) {
+    if (!S.db) return;
+    S.busy[key] = true; S.err[key] = null; render();
+    var doc = { criteria: st.c, outreach: st.o, updatedAt: new Date().toISOString() };
+    S.db.doc("settings/criteria").set(doc).then(function () { S.settings.criteria = doc; S.busy[key] = false; delete S.local[key]; render(); })
+      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + "). The settings table may not exist yet."; render(); });
+  }
+
+  // ---------- New search: counties + criteria ----------
+  var CRM_STATES = ["AL", "AR", "GA", "KY", "NC", "OK", "TN", "VA"];
+  function loadCrmCounties(state) {
+    if (S.crm[state] || !window.SF || !window.SF.sb || !window.SF_COUNTIES || !window.SF_COUNTIES[state]) return;
+    S.crm[state] = { loading: true, by: {} };
+    window.SF.sb.from("market_counties").select("fips,flip,subdivide,active_listings").eq("state_fp", window.SF_COUNTIES[state].f).then(function (r) {
+      var by = {}; (r.data || []).forEach(function (x) { by[x.fips] = x; });
+      S.crm[state] = { by: by, error: r.error ? (r.error.message || "error") : null }; render();
+    });
+  }
+  function newSearchForm() {
+    var key = "newrun";
+    var st = S.local[key] || (S.local[key] = { state: "TN", picked: {}, label: "", filter: "", c: defaultCriteria(), showCrit: false });
+    var data = (window.SF_COUNTIES || {})[st.state];
+    loadCrmCounties(st.state);
+    var crm = S.crm[st.state] || { by: {} };
+    var counties = data ? data.c.map(function (x) { var f = data.f + x[0], m = crm.by[f] || {}; return { fips: f, name: x[1], sub: m.subdivide === "yes", flip: m.flip === "yes", listings: m.active_listings }; }) : [];
+    var nPicked = Object.keys(st.picked).length;
+    var approved = counties.filter(function (c) { return c.sub; });
+
+    var stateSel = h("select", { id: "nr-state", onchange: function (e) { st.state = e.target.value; st.picked = {}; st.filter = ""; render(); } },
+      h("optgroup", { label: "In your CRM" }, CRM_STATES.map(function (s) { return h("option", { value: s, text: ((window.SF_COUNTIES || {})[s] || {}).n || s, selected: st.state === s }); })),
+      h("optgroup", { label: "Other states" }, STATES.filter(function (s) { return CRM_STATES.indexOf(s) < 0; }).map(function (s) { return h("option", { value: s, text: ((window.SF_COUNTIES || {})[s] || {}).n || s, selected: st.state === s }); })));
+
+    var ql = st.filter.trim().toLowerCase();
+    var list = h("div", { className: "clist", role: "group", "aria-label": "Counties" });
+    counties.filter(function (c) { return !ql || c.name.toLowerCase().indexOf(ql) >= 0; }).forEach(function (c) {
+      list.appendChild(h("label", { className: "citem" + (st.picked[c.fips] ? " on" : "") },
+        h("input", { type: "checkbox", checked: st.picked[c.fips] ? true : null, onchange: function (e) { if (e.target.checked) st.picked[c.fips] = c.name; else delete st.picked[c.fips]; render(); } }),
+        h("span", { className: "cn", text: c.name }),
+        c.sub ? pill("Subdivide", "var(--success-soft)", "var(--success-ink)") : null,
+        c.flip && !c.sub ? h("span", { className: "small muted", text: "Flip" }) : null,
+        c.listings != null ? h("span", { className: "cl num", text: c.listings + " listed" }) : null));
+    });
+
+    var base = defaultCriteria();
+    var changed = critDiff(st.c, base);
+    return h("form", { className: "panel", style: "margin-bottom:18px", onsubmit: function (e) { e.preventDefault(); queueSearch(st, key); } },
+      h("div", { className: "form-grid" },
+        h("label", { className: "f" }, "State", stateSel),
+        h("label", { className: "f" }, "Find a county", h("input", { type: "text", id: "nr-filter", placeholder: "Type to filter", value: st.filter, oninput: function (e) { st.filter = e.target.value; render(); } })),
+        h("label", { className: "f" }, "Name (optional)", h("input", { type: "text", id: "nr-label", placeholder: "e.g. Middle TN, round 2", value: st.label, oninput: function (e) { st.label = e.target.value; } }))),
+      h("div", { className: "row", style: "margin:12px 0 8px" },
+        h("b", { className: "small", text: nPicked + " of " + counties.length + " counties selected" }),
+        approved.length ? h("button", { className: "btn sm", type: "button", onclick: function () { approved.forEach(function (c) { st.picked[c.fips] = c.name; }); render(); }, text: "Add subdivide-approved (" + approved.length + ")" }) : null,
+        nPicked ? h("button", { className: "btn sm ghost", type: "button", onclick: function () { st.picked = {}; render(); }, text: "Clear" }) : null,
+        crm.loading ? h("span", { className: "state", text: "Loading CRM county flags…" }) : (crm.error ? h("span", { className: "state", text: "CRM county flags didn't load." }) : null)),
+      list,
+      h("div", { className: "crit-box" },
+        h("button", { className: "crit-toggle", type: "button", "aria-expanded": String(!!st.showCrit), onclick: function () { st.showCrit = !st.showCrit; render(); } },
+          h("span", null, h("b", { text: "Criteria for this search" }), h("span", { className: "muted", text: " · " + critSummary(st.c) })),
+          h("span", { className: "muted", text: changed.length ? changed.length + " changed from default" : "Using your default" })),
+        st.showCrit ? h("div", { style: "margin-top:12px" },
+          critInputs(st.c, "nc-", base, function () { render(); }),
+          h("label", { className: "f", style: "margin-top:12px" }, "Extra instructions for this search (optional)", h("textarea", { id: "nc-notes", rows: "2", value: st.c.notes || "", oninput: function (e) { st.c.notes = e.target.value; } })),
+          changed.length ? h("button", { className: "btn sm ghost", type: "button", style: "margin-top:8px", onclick: function () { st.c = defaultCriteria(); render(); }, text: "Back to default" }) : null) : null),
+      h("div", { className: "row", style: "margin-top:14px" },
+        h("button", { className: "btn primary", type: "submit", disabled: !!S.busy[key] || !nPicked, text: S.busy[key] ? "Adding…" : "Start search" }),
+        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : h("span", { className: "state", text: "Runs at 12:47, 4:47 or 8:47 PM Central, or right away when you say \"run the queue\" in chat." })));
+  }
+  function queueSearch(st, key) {
+    if (!S.db) return;
+    var fips = Object.keys(st.picked).sort(), names = fips.map(function (f) { return st.picked[f]; });
+    if (!names.length) { S.err[key] = "Pick at least one county."; render(); return; }
+    S.busy[key] = true; S.err[key] = null; render();
+    var base = defaultCriteria(), c = Object.assign({}, st.c);
+    var id = (st.state + "-" + names.join("-") + "-" + todayCT()).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 120);
+    S.db.doc("runs/" + id).set({ state: st.state, counties: names, fips: fips, allApproved: false, minAcres: +c.minAcres || 10, criteria: c, criteriaChanged: critDiff(c, base), label: st.label.trim(), status: "queued", requestedAt: new Date().toISOString() })
+      .then(function () { S.busy[key] = false; delete S.local[key]; S.showNew = false; render(); })
+      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't add it (" + ((e && e.code) || "error") + ")."; render(); });
+  }
+  function runCriteriaLine(r) {
+    var base = defaultCriteria();
+    if (!r.criteria) return h("p", { className: "crit-line" }, h("b", { text: "Criteria: " }), "original defaults · " + critSummary(baseCriteria()));
+    var ch = r.criteriaChanged || critDiff(r.criteria, base);
+    var labels = ch.map(function (k) { var f = CRIT_FIELDS.filter(function (x) { return x.k === k; })[0] || CRIT_TOGGLES.filter(function (x) { return x.k === k; })[0]; return f ? f.label.toLowerCase() : (k === "notes" ? "extra instructions" : k); });
+    return h("p", { className: "crit-line" }, h("b", { text: "Criteria: " }), critSummary(r.criteria), ch.length ? h("span", { className: "chg", text: " · changed for this search: " + labels.join(", ") }) : " · default", r.criteria.notes ? h("span", { className: "muted", text: " · \"" + r.criteria.notes + "\"" }) : null);
   }
 
   // ---------- Searches (home) ----------
@@ -540,20 +793,6 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     COLS.concat([ASIDE]).forEach(function (c) { if (st.c[c.id]) bar.appendChild(h("span", { style: "width:" + (st.c[c.id] / n * 100) + "%;background:" + c.dot })); });
     return bar;
   }
-  function newSearchForm() {
-    var key = "newrun";
-    var st = S.local[key] || (S.local[key] = { state: "TN", counties: "", all: false, minAcres: "10", label: "" });
-    return h("form", { className: "panel", style: "margin-bottom:18px", onsubmit: function (e) { e.preventDefault(); queueRun(st, key); } },
-      h("div", { className: "form-grid" },
-        h("label", { className: "f" }, "State", h("select", { id: "nr-state", onchange: function (e) { st.state = e.target.value; } }, STATES.map(function (s) { return h("option", { value: s, text: s, selected: st.state === s }); }))),
-        h("label", { className: "f" }, "Minimum acres", h("input", { type: "number", id: "nr-min", min: "1", value: st.minAcres, oninput: function (e) { st.minAcres = e.target.value; } })),
-        h("label", { className: "f" }, "Name (optional)", h("input", { type: "text", id: "nr-label", placeholder: "e.g. Middle TN, round 2", value: st.label, oninput: function (e) { st.label = e.target.value; } }))),
-      h("label", { className: "f", style: "margin-top:12px" }, "Counties", h("textarea", { id: "nr-counties", rows: "2", placeholder: "Dickson, Hickman, Cumberland", disabled: st.all || null, value: st.counties, oninput: function (e) { st.counties = e.target.value; } })),
-      h("label", { className: "small", style: "display:flex;gap:8px;align-items:center;margin-top:10px" }, h("input", { type: "checkbox", id: "nr-all", checked: st.all || null, onchange: function (e) { st.all = e.target.checked; render(); } }), "Use every county the CRM marks approved for subdivide in this state"),
-      h("div", { className: "row", style: "margin-top:14px" },
-        h("button", { className: "btn primary", type: "submit", disabled: !!S.busy[key], text: S.busy[key] ? "Adding…" : "Start search" }),
-        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : h("span", { className: "state", text: "Claude runs it at 12:47, 4:47 or 8:47 PM Central (your Mac on, Chrome open), or right away when you say \"run the queue\" in chat." })));
-  }
 
   // ---------- One search ----------
   function searchView(r) {
@@ -567,6 +806,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
         r.status === "done" || r.status === "failed" ? h("button", { className: "btn sm", type: "button", onclick: function () { S.db.doc("runs/" + r.id).update({ status: "queued", requestedAt: new Date().toISOString(), note: "Re-run requested." }).catch(function () {}); }, text: "Run again" }) : null,
         r.status === "queued" ? h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.db.doc("runs/" + r.id).delete().then(function () { go(null); }).catch(function () {}); }, text: "Remove from queue" }) : null)));
 
+    root.appendChild(runCriteriaLine(r));
     if (!ds.length) { root.appendChild(h("div", { className: "empty", text: r.status === "done" ? "This search finished with no shortlisted properties." : "Nothing yet. Claude fills this in when the search runs." })); return root; }
 
     // Summary of the spreadsheet
@@ -658,6 +898,22 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 
   // ---------- Deal drawer ----------
   function drawerView(d, r) {
+    var parts = drawerParts(d, r), close = function () { go(r.id); };
+    return h("div", null,
+      h("div", { className: "scrim", onclick: close }),
+      h("aside", { className: "drawer", id: "drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "drawer-title" }, parts.head, lpMap(d), parts.body));
+  }
+  function lpMap(d) {
+    var url = d.links && d.links.landportal;
+    if (!url) return h("div", { className: "dr-map" }, h("div", { className: "map-foot row" }, h("span", { className: "small muted", text: "No Land Portal link for this property yet." })));
+    var pin = d.lpMatch && d.lpMatch !== "Matched";
+    return h("div", { className: "dr-map" },
+      h("iframe", { src: url, title: "Land Portal map of " + d.address, loading: "lazy", referrerpolicy: "no-referrer", allow: "fullscreen" }),
+      h("div", { className: "map-foot row" },
+        h("span", { className: "small muted", text: pin ? "Map pin from the listing. Land Portal check: " + d.lpMatch + "." : "Land Portal parcel view. Sign in on Land Portal for contours and the full tools." }),
+        h("a", { className: "btn sm", href: url, target: "_blank", rel: "noopener", text: "Open in Land Portal ↗" })));
+  }
+  function drawerParts(d, r) {
     var c = CMAP[colFor(d)], flag = dealFlag(d), threads = outreachForDeal(d);
     var close = function () { go(r.id); };
     var moveSel = h("select", { id: "move-" + d.id, "aria-label": "Move to stage", disabled: d._orphan || null, onchange: function (e) { var to = CMAP[e.target.value]; updateDeal(d, { col: to.id, stage: to.stage }); } },
@@ -703,9 +959,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
       else body.appendChild(h("div", null, h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.composeOpen[d.id] = true; render(); }, text: "+ Start a new email thread with this agent" })));
       body.appendChild(h("div", { className: "box" }, offerEditor(d)));
     }
-    return h("div", null,
-      h("div", { className: "scrim", onclick: close }),
-      h("aside", { className: "drawer", id: "drawer", role: "dialog", "aria-modal": "true", "aria-labelledby": "drawer-title" }, head, body));
+    return { head: head, body: body };
   }
   function threadBox(o, d) {
     var bucket = BMAP[bucketFor(o)];
@@ -840,7 +1094,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
       var now = new Date().toISOString();
       var doc = { dealId: d.id, search: d.runId, runId: d.runId, county: d.county, property: d.address, acres: d.acres, asking: d.asking,
         agent: (d.agent && d.agent.name) || "", brokerage: (d.agent && d.agent.brokerage) || "", phone: (d.agent && d.agent.phone) || "",
-        to: to, cc: cc, channel: "Gmail", subject: st.subject, threadId: tid || "", delivery: "sent", sentAt: now, followUpDue: addBizDays(3),
+        to: to, cc: cc, channel: "Gmail", subject: st.subject, threadId: tid || "", delivery: "sent", sentAt: now, followUpDue: addBizDays(+outreachRules().followUpDays || 3),
         sentBody: st.body, notes: "", links: d.links || {} };
       var w = tid ? S.db.doc("outreach/" + tid).set(doc) : S.db.collection("outreach").add(doc);
       return Promise.resolve(w).then(function () {
@@ -980,7 +1234,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     var input = { to: r.to, subject: subj, body: st.draft, includeSignature: true, replyThreadId: o.threadId }; if (r.cc.length) input.cc = r.cc;
     S.mcp.callTool(GMAIL, "send_message", input).then(function () {
       S.busy[key] = null;
-      var due = addBizDays(3);
+      var due = addBizDays(+outreachRules().followUpDays || 3);
       setIdea(o.threadId, { threadId: o.threadId, gist: st.gist, draft: "", lastSent: st.draft, state: "sent", sentAt: new Date().toISOString(), followUpDue: due, property: o.property, agent: o.agent, search: o.search || o.runId || "" });
       delete S.local[key];
       var d = o.dealId ? dealById(o.dealId) : null;
@@ -996,16 +1250,6 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
       .catch(function (e) { S.err["reply-" + id] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
   }
 
-  function queueRun(st, key) {
-    if (!S.db) return;
-    var counties = String(st.counties || "").split(/[\n,;]+/).map(function (x) { return x.replace(/county$/i, "").trim(); }).filter(Boolean);
-    if (!st.all && !counties.length) { S.err[key] = "Add at least one county, or tick the approved-counties box."; render(); return; }
-    S.busy[key] = true; S.err[key] = null; render();
-    var id = (st.state + "-" + (st.all ? "approved" : counties.join("-")) + "-" + todayCT()).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 120);
-    S.db.doc("runs/" + id).set({ state: st.state, counties: st.all ? [] : counties, allApproved: !!st.all, minAcres: +st.minAcres || 10, label: st.label.trim(), status: "queued", requestedAt: new Date().toISOString() })
-      .then(function () { S.busy[key] = false; delete S.local[key]; S.showNew = false; render(); })
-      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't add it (" + ((e && e.code) || "error") + ")."; render(); });
-  }
 
   // ---------- Gmail live ----------
   function parseThread(payload) {
@@ -1068,7 +1312,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 
   // ---------- boot ----------
   S.route = parseRoute();
-  window.addEventListener("hashchange", function () { var prev = S.route.search; S.route = parseRoute(); if (prev !== S.route.search) { S.q = ""; window.scrollTo(0, 0); } render(); });
+  window.addEventListener("hashchange", function () { var prev = S.route.search, prevPage = S.route.page; S.route = parseRoute(); if (prev !== S.route.search || prevPage !== S.route.page) { S.q = ""; window.scrollTo(0, 0); } render(); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && S.route.deal) go(S.route.search); });
   render();
   if (!window.claude || typeof window.claude.use !== "function") { S.dbState = "none"; render(); return; }
@@ -1083,6 +1327,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
     var fail = function (e) { clearTimeout(timer); S.dbState = "error"; S.dbError = e && e.code; render(); };
     db.collection("runs").onSnapshot(function (snap) { S.runs = docs(snap); markLoaded("runs", snap); render(); }, fail);
     db.collection("deals").onSnapshot(function (snap) { S.deals = docs(snap); markLoaded("deals", snap); render(); }, fail);
+    db.collection("settings").onSnapshot(function (snap) { var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data(); }); S.settings = m; S.settingsErr = null; render(); }, function (e) { S.settingsErr = (e && e.code) || "error"; render(); });
     db.collection("ideas").onSnapshot(function (snap) { var m = {}; snap.docs.forEach(function (d) { m[d.id] = d.data(); }); S.ideas = m; render(); }, function () {});
     db.collection("outreach").onSnapshot(function (snap) {
       S.outreach = docs(snap).map(function (x) { if (!x.threadId) x.threadId = x.id; return x; });
