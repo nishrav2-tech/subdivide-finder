@@ -174,6 +174,7 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .fig .v{display:block;font-size:13.5px;font-weight:500;font-variant-numeric:tabular-nums}
 .compose{display:flex;flex-direction:column;gap:10px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink);font-size:13px}
 .convo{display:flex;flex-direction:column;gap:8px;margin:10px 0}
 .msg{border:1px solid var(--border);border-radius:var(--r-md);padding:10px 12px;background:var(--surface)}
@@ -285,7 +286,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   ];
   var SCOLOR = {}; SCREENS.forEach(function (s) { SCOLOR[s.id] = s.c; });
   var STAGES = [
-    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" },
+    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "ready", label: "Ready to offer" },
     { id: "offer", label: "Offer out" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
   ];
   var OFFER_STATUSES = ["Not submitted", "Submitted", "Countered", "Accepted", "Under contract", "Rejected", "Withdrawn"];
@@ -418,10 +419,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
   // ---------- pipeline model ----------
   var COLS = [
     { id: "rejected", label: "Rejected", hint: "You passed on these. Drag one back out anytime.", dot: "#B8422E", pb: "var(--danger-soft)", pc: "var(--danger)", stage: "rejected" },
-    { id: "ready", label: "Ready to offer", hint: "Passed every screen. Check the numbers and make an offer.", dot: "#4C8B3A", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "new" },
-    { id: "contact", label: "Contact agent", hint: "Needs the APN or a fact confirmed before an offer.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
+    { id: "contact", label: "Contact agent", hint: "Passed the screens or needs a fact confirmed. Email the agent.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
     { id: "contacted", label: "Agent contacted", hint: "Email sent. Waiting on the agent.", dot: "#4F79A8", pb: "var(--info-soft)", pc: "var(--info-ink)", stage: "contacting" },
     { id: "talking", label: "In conversation", hint: "The agent replied. Keep it moving.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
+    { id: "ready", label: "Ready to offer", hint: "Right before an offer. Fill in your review notes, then log the offer.", dot: "#4C8B3A", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "ready" },
     { id: "offer", label: "Offer made", hint: "Offer submitted or countered.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
     { id: "contract", label: "Under contract", hint: "Accepted. On to due diligence.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
   ];
@@ -448,12 +449,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (os === "Submitted" || os === "Countered" || d.stage === "offer") return "offer";
     if (d.stage === "rejected") return "rejected";
     if (d.stage === "dead") return "aside";
+    if (d.stage === "ready") return "ready";
     var th = outreachForDeal(d);
     if (th.length) return (d.stage === "talking" || th.some(function (o) { return inboundOf(o).length; })) ? "talking" : "contacted";
     if (d.stage === "talking") return "talking";
     if (d.stage === "contacting") return "contacted";
-    if (d.screen === "Ready to offer") return "ready";
-    if (d.screen === "Verify with agent" || d.screen === "Need APN") return "contact";
+    if (d.screen === "Ready to offer" || d.screen === "Verify with agent" || d.screen === "Need APN") return "contact";
     return "aside";
   }
   var FLAGS = {
@@ -488,6 +489,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var m = { queued: ["Queued", "var(--warn-soft)", "var(--warn-ink)"], running: ["Running", "var(--info-soft)", "var(--info-ink)"], done: ["Done", "var(--success-soft)", "var(--success-ink)"], failed: ["Failed", "var(--danger-soft)", "var(--danger)"] }[r.status] || [r.status || "", "var(--surface-2)", "var(--ink-2)"];
     return h("span", { className: "pill dot", style: "--pb:" + m[1] + ";--pc:" + m[2], text: m[0] });
   }
+  function screenLabel(s) { return s === "Ready to offer" ? "Passed screens" : (s || ""); }
   function pill(text, pb, pc, dot) { return h("span", { className: "pill" + (dot ? " dot" : ""), style: "--pb:" + pb + ";--pc:" + pc, text: text }); }
   function compact(n) { if (n == null || isNaN(n)) return "—"; if (n >= 1e6) return "$" + (Math.round(n / 1e5) / 10) + "M"; if (n >= 1e3) return "$" + Math.round(n / 1e3) + "K"; return "$" + Math.round(n); }
   function median(a) { a = a.filter(function (x) { return x != null && !isNaN(x); }).sort(function (x, y) { return x - y; }); if (!a.length) return null; var m = Math.floor(a.length / 2); return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2; }
@@ -558,7 +560,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   var CRIT_TOGGLES = [
     { k: "dropAbove75", label: "Drop listings priced above the county's 75th percentile $/ac", def: true },
     { k: "tn5Acre", label: "Use Tennessee's 5-acre subdivision exemption when splitting", def: true },
-    { k: "lpRequired", label: "Every parcel must match Land Portal before it can be Ready to offer", def: true }
+    { k: "lpRequired", label: "Every parcel must match Land Portal before it can pass the screens", def: true }
   ];
   var OUT_FIELDS = { sendCutoff: 19, noWeekends: true, followUpDays: 3 };
   function baseCriteria() { var c = {}; CRIT_FIELDS.forEach(function (f) { c[f.k] = f.def; }); CRIT_TOGGLES.forEach(function (f) { c[f.k] = f.def; }); c.notes = ""; return c; }
@@ -622,7 +624,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
     root.appendChild(h("h2", { className: "sec", text: "How each property is screened" }));
     var screens = [
-      ["Ready to offer", "Passes price, frontage, access and slope, and matches Land Portal."],
+      ["Passed screens", "Passes price, frontage, access and slope, and matches Land Portal. Goes to Contact agent; you move it to Ready to offer once you're about to offer."],
       ["Verify with agent", "Looks good, but the listing and Land Portal disagree on acres, frontage, access or parcel number. The agent email asks about it."],
       ["Need APN", "No parcel number found on Redfin or Land Portal. The agent email asks for it."],
       ["Frontage short", "Not enough road frontage for the full split; only some lots fit."],
@@ -821,7 +823,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     root.appendChild(h("div", { className: "stats" },
       stat("Listings reviewed", sm.listings != null ? sm.listings : "—", "on Zillow and Redfin"),
       stat("Shortlisted", real.length, "over " + (r.minAcres || 10) + " ac, checked in Land Portal"),
-      stat("Ready to offer", sc["Ready to offer"] || 0, ((sc["Verify with agent"] || 0) + (sc["Need APN"] || 0)) + " more need the agent"),
+      stat("Passed screens", sc["Ready to offer"] || 0, ((sc["Verify with agent"] || 0) + (sc["Need APN"] || 0)) + " more need the agent"),
       stat("Total acres", Math.round(acres).toLocaleString("en-US"), "across the shortlist"),
       stat("Total asking", compact(asking), "median " + money(median(real.map(function (d) { return +d.ppa; }))) + "/ac"),
       stat("Viable at 2x", viable, (real.length - viable) + " negotiable")));
@@ -829,7 +831,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var screens = h("div", { className: "panel" }, h("h3", { text: "Screening results" }));
     var maxS = Math.max.apply(null, SCREENS.map(function (s) { return sc[s.id] || 0; }).concat([1]));
     SCREENS.forEach(function (s) {
-      screens.appendChild(h("div", { className: "hbar" }, h("span", { text: s.id }), h("div", { className: "track" }, h("span", { style: "width:" + ((sc[s.id] || 0) / maxS * 100) + "%;background:" + SCREEN_DOT[s.id] })), h("span", { className: "n", text: String(sc[s.id] || 0) })));
+      screens.appendChild(h("div", { className: "hbar" }, h("span", { text: screenLabel(s.id) }), h("div", { className: "track" }, h("span", { style: "width:" + ((sc[s.id] || 0) / maxS * 100) + "%;background:" + SCREEN_DOT[s.id] })), h("span", { className: "n", text: String(sc[s.id] || 0) })));
     });
     var byC = {};
     real.forEach(function (d) { var c = byC[d.county] || (byC[d.county] = { n: 0, ready: 0, agent: 0, aside: 0, ppa: [] }); c.n++; c.ppa.push(+d.ppa);
@@ -840,7 +842,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       tb.appendChild(h("tr", null, h("td", { text: k }), h("td", { className: "r", text: String(c.n) }), h("td", { className: "r", text: String(c.ready) }), h("td", { className: "r", text: String(c.agent) }), h("td", { className: "r", text: String(c.aside) }), h("td", { className: "r", text: money(median(c.ppa)) })));
     });
     var counties = h("div", { className: "panel" }, h("h3", { text: "By county" }),
-      h("table", { className: "t" }, h("thead", null, h("tr", null, h("th", { text: "County" }), h("th", { className: "r", text: "Tracts" }), h("th", { className: "r", text: "Ready" }), h("th", { className: "r", text: "Need agent" }), h("th", { className: "r", text: "Set aside" }), h("th", { className: "r", text: "Median $/ac" }))), tb));
+      h("table", { className: "t" }, h("thead", null, h("tr", null, h("th", { text: "County" }), h("th", { className: "r", text: "Tracts" }), h("th", { className: "r", text: "Passed" }), h("th", { className: "r", text: "Need agent" }), h("th", { className: "r", text: "Set aside" }), h("th", { className: "r", text: "Median $/ac" }))), tb));
     root.appendChild(h("div", { className: "two" }, screens, counties));
     if (r.workbook || r.note) root.appendChild(h("p", { className: "foot", text: [r.note, r.workbook ? "Spreadsheet: " + r.workbook : ""].filter(Boolean).join(" ") }));
 
@@ -880,7 +882,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       aside.forEach(function (d) {
         list.appendChild(h("button", { className: "arow", type: "button", onclick: function () { go(r.id, d.id); } },
           h("span", null, h("b", { text: d.address }), h("span", { className: "muted small", text: " · " + d.county + " · " + (d.acres || "") + " ac" })),
-          h("span", null, pill(d.stage === "dead" ? "Marked dead" : (d.screen || "Unscreened"), "var(--surface-2)", "var(--ink-2)")),
+          h("span", null, pill(d.stage === "dead" ? "Marked dead" : (screenLabel(d.screen) || "Unscreened"), "var(--surface-2)", "var(--ink-2)")),
           h("span", { className: "why", text: d.notes || "" })));
       });
       det.appendChild(list);
@@ -895,6 +897,9 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (c.id === "offer" || c.id === "contract") line = d.offer && d.offer.amount ? "Offer " + money(d.offer.amount) + " · " + d.offer.status : "Offer logged";
     else if (c.id === "contacted" || c.id === "talking") line = d.agent && d.agent.name ? d.agent.name : "";
     else line = d.offerHigh ? "2x offer " + compact(d.offerLow) + " to " + compact(d.offerHigh) : "";
+    var rv = d.review || {};
+    if (rv.resale) line = (line ? line + " · " : "") + "you: sells ~" + compact(rv.resale);
+    var killer = (rv.killers || "").trim();
     var card = h("button", { className: "dcard" + (S.route.deal === d.id ? " sel" : ""), type: "button", style: "--cc:" + c.dot, draggable: d._orphan ? null : "true",
       title: "Drag to another stage, or click to open", onclick: function () { go(r.id, d.id); },
       ondragstart: function (e) { S.dragging = d.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setTimeout(function () { card.classList.add("dragging"); }, 0); },
@@ -903,9 +908,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
       (d.files && d.files.length) ? h("span", { className: "m", text: d.files.length + (d.files.length === 1 ? " file" : " files") }) : null,
-      (flag || c.id === "contact") ? h("span", { className: "tags" },
+      (flag || killer || c.id === "contact") ? h("span", { className: "tags" },
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
-        c.id === "contact" ? pill(d.screen, "var(--surface-2)", "var(--ink-2)") : null) : null);
+        killer ? pill("Deal killer noted", "var(--danger-soft)", "var(--danger)", true) : null,
+        c.id === "contact" ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null) : null);
     return card;
   }
   function dropDeal(id, colId) {
@@ -1075,7 +1081,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("div", { className: "m num", text: [d.county ? d.county + " Co., " + (d.state || "") : "", d.acres != null ? d.acres + " ac" : "", d.asking ? "asking " + money(d.asking) + (d.ppa ? " (" + money(d.ppa) + "/ac)" : "") : ""].filter(Boolean).join(" · ") }),
       h("div", { className: "row" },
         pill(c.label, c.pb, c.pc, true),
-        d.screen ? pill(d.screen, "var(--surface-2)", "var(--ink-2)") : null,
+        d.screen ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null,
         flag ? pill(flag.t, flag.pb, flag.pc) : null,
         h("span", { className: "links", style: "margin-left:auto" },
           d.links && d.links.zillow ? h("a", { href: d.links.zillow, target: "_blank", rel: "noopener", text: "Zillow" }) : null,
@@ -1084,7 +1090,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var body = h("div", { className: "dr-body" });
     body.appendChild(h("div", { className: "box row" }, h("label", { className: "lbl", "for": "move-" + d.id, style: "margin:0" }, "Stage"), h("div", { style: "flex:1;min-width:180px" }, moveSel),
       S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null));
-    if (d.notes) body.appendChild(h("div", { className: "note", text: d.notes }));
+    if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d)));
+    if (d.notes) body.appendChild(h("div", { className: "note" }, h("b", { text: "From the listing and agent emails: " }), d.notes));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "The numbers" }), h("div", { className: "figs" },
       fig("2x offer range", d.offerHigh ? money(d.offerLow) + " to " + money(d.offerHigh) : ""),
       fig("Asking vs 2x high", pct(d.askVsHigh)),
@@ -1244,6 +1251,43 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("button", { className: "btn primary", type: "button", onclick: function () { onSave(st.instr); }, text: btnText }),
         onCancel ? h("button", { className: "btn ghost", type: "button", onclick: onCancel, text: "Cancel" }) : null,
         extras));
+  }
+
+  // Jay's own review notes (deal.review)
+  var REVIEW_FIELDS = [
+    { k: "basis", label: "How you got the resale number", rows: 2, ph: "Comps, per-lot price, who the buyer is" },
+    { k: "defects", label: "Defects and problems", rows: 3, ph: "Flood zone, steep sections, power far away, bad access, easements, title issues" },
+    { k: "killers", label: "Deal killers (reasons you'd cancel)", rows: 2, ph: "What would make you walk away or cancel in due diligence" },
+    { k: "notes", label: "Other notes", rows: 3, ph: "Site visit, calls, anything else" }
+  ];
+  function reviewEditor(d) {
+    var key = "review-" + d.id, rv = d.review || {};
+    var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", notes: rv.notes || "" });
+    var touch = function () { st.dirty = 1; S.err[key] = null; };
+    var saveIfDirty = function () { if (st.dirty && !S.busy[key]) saveReview(d, st, key); };
+    var perAcre = st.resale && d.acres ? money(+st.resale / +d.acres) + "/ac" : "";
+    var vsAsk = st.resale && d.asking ? Math.round(+st.resale / +d.asking * 10) / 10 + "x asking" : "";
+    var status = S.busy[key] ? "Saving…" : S.err[key] ? null : st.dirty ? "Unsaved changes" : (rv.updatedAt ? "Saved " + fmtDT(rv.updatedAt) : "Only you see these. Claude's agent notes stay separate.");
+    return h("div", { className: "compose" }, h("div", { className: "lbl", text: "Your review" }),
+      h("div", { className: "grid2" },
+        h("label", { className: "f" }, "What you think it sells for ($, whole tract)", h("input", { type: "number", id: key + "-resale", value: st.resale, oninput: function (e) { st.resale = e.target.value; touch(); }, onblur: saveIfDirty })),
+        h("label", { className: "f" }, "Lots you'd split it into", h("input", { type: "number", id: key + "-lots", value: st.lots, placeholder: d.splitLots ? String(d.splitLots) : "", oninput: function (e) { st.lots = e.target.value; touch(); }, onblur: saveIfDirty }))),
+      (perAcre || vsAsk) ? h("div", { className: "small muted", text: [perAcre, vsAsk, st.lots && st.resale ? money(+st.resale / +st.lots) + " per lot" : ""].filter(Boolean).join(" · ") }) : null,
+      REVIEW_FIELDS.map(function (f) {
+        return h("label", { className: "f" }, f.label, h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
+      }),
+      h("div", { className: "row-actions" },
+        h("button", { className: "btn primary", type: "button", onclick: function () { saveReview(d, st, key); }, text: "Save notes" }),
+        status ? h("span", { className: "state", text: status }) : null,
+        S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
+  }
+  function saveReview(d, st, key) {
+    if (!S.db) return;
+    var num = function (v) { return v === "" || v == null || isNaN(+v) ? null : +v; };
+    var review = { resale: num(st.resale), lots: num(st.lots), basis: st.basis || "", defects: st.defects || "", killers: st.killers || "", notes: st.notes || "", updatedAt: new Date().toISOString() };
+    S.busy[key] = true; S.err[key] = null; render();
+    S.db.doc("deals/" + d.id).update({ review: review }).then(function () { d.review = review; S.busy[key] = false; delete S.local[key]; render(); })
+      .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
   }
 
   // Offer tracker
