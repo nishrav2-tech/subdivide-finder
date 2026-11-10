@@ -231,6 +231,12 @@ ol.steps,ul.steps{padding-left:36px;display:flex;flex-direction:column;gap:8px;f
 details.aside.drop>summary{background:var(--accent-soft)}
 .note.ok-note{background:var(--success-soft);color:var(--success-ink)}
 .lp-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frow{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--border)}
+.frow:first-of-type{border-top:0}
+.fname{text-align:left;font-weight:600;font-size:13px;color:var(--accent);text-decoration:underline;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmeta{white-space:nowrap}
+input[type=file]{font-size:12.5px;max-width:100%}
+@media (max-width:640px){.frow{grid-template-columns:auto 1fr auto}.fmeta{display:none}}
 /* sign-in gate */
 #sf-gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
 #sf-gate form{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-xl);padding:32px;width:min(400px,100%);display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow-lg)}
@@ -896,6 +902,7 @@ details.aside.drop>summary{background:var(--accent-soft)}
       h("span", { className: "a", text: d.address }),
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
+      (d.files && d.files.length) ? h("span", { className: "m", text: d.files.length + (d.files.length === 1 ? " file" : " files") }) : null,
       (flag || c.id === "contact") ? h("span", { className: "tags" },
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
         c.id === "contact" ? pill(d.screen, "var(--surface-2)", "var(--ink-2)") : null) : null);
@@ -907,6 +914,105 @@ details.aside.drop>summary{background:var(--accent-soft)}
     if (!d || !to || d._orphan) { render(); return; }
     if (colFor(d) !== colId) { d.col = to.id; d.stage = to.stage; updateDeal(d, { col: to.id, stage: to.stage }); }
     render();
+  }
+
+  // ---------- Deal files (Supabase Storage bucket "sf-files", metadata in deal.files) ----------
+  var FILE_KINDS = ["Survey", "Plat or map", "Perc or soil test", "Photos", "Title or deed", "Listing docs", "Other"];
+  var BUCKET = "sf-files";
+  function storage() { return window.SF && window.SF.sb ? window.SF.sb.storage.from(BUCKET) : null; }
+  function fmtSize(n) { if (!n && n !== 0) return ""; if (n >= 1048576) return (Math.round(n / 104857.6) / 10) + " MB"; return Math.max(1, Math.round(n / 1024)) + " KB"; }
+  function safeName(s) { return String(s || "file").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-120); }
+  function guessKind(name) {
+    var n = String(name || "").toLowerCase();
+    if (/survey/.test(n)) return "Survey";
+    if (/plat|map|vrdiv|tax ?map/.test(n)) return "Plat or map";
+    if (/perc|soil|septic/.test(n)) return "Perc or soil test";
+    if (/deed|title/.test(n)) return "Title or deed";
+    if (/\.(jpe?g|png|heic|webp)$/.test(n)) return "Photos";
+    return "Other";
+  }
+  function unsavedAttachments(d) {
+    var saved = {}; (d.files || []).forEach(function (f) { saved[String(f.name).toLowerCase()] = 1; });
+    var out = [];
+    outreachForDeal(d).forEach(function (o) {
+      convoFor(o).forEach(function (m) {
+        if (isMe(m.from)) return;
+        (m.attachments || []).forEach(function (a) { if (!saved[String(a).toLowerCase()]) out.push({ name: a, from: nameOf(m.from), date: m.date, url: m.viewUrl || o.viewUrl }); });
+      });
+    });
+    return out;
+  }
+  function filesBox(d) {
+    var key = "files-" + d.id;
+    var st = S.local[key] || (S.local[key] = { kind: "Survey" });
+    var files = (d.files || []).slice().sort(function (a, b) { return String(b.receivedAt || b.addedAt || "").localeCompare(String(a.receivedAt || a.addedAt || "")); });
+    var box = h("div", { className: "box", id: key }, h("span", { className: "lbl", text: "Files" + (files.length ? " (" + files.length + ")" : "") }));
+    if (!files.length) box.appendChild(h("div", { className: "small muted", style: "margin-bottom:8px", text: "No files yet. Surveys, plats and test results the agent sends get saved here." }));
+    files.forEach(function (f) {
+      var delKey = "del-" + f.path;
+      box.appendChild(h("div", { className: "frow" },
+        pill(f.kind || "Other", "var(--surface-2)", "var(--ink-2)"),
+        h("button", { className: "fname", type: "button", title: "Open " + f.name, onclick: function () { openFile(f, key); }, text: f.name }),
+        h("span", { className: "small muted fmeta", text: [f.from ? "from " + f.from : "uploaded", fmtDT(f.receivedAt || f.addedAt), fmtSize(f.size)].filter(Boolean).join(" · ") }),
+        S.confirm[delKey]
+          ? h("span", { className: "row" }, h("button", { className: "btn sm", type: "button", onclick: function () { S.confirm[delKey] = null; deleteFile(d, f, key); }, text: "Delete" }), h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.confirm[delKey] = null; render(); }, text: "Keep" }))
+          : h("button", { className: "btn sm ghost", type: "button", "aria-label": "Delete " + f.name, onclick: function () { S.confirm[delKey] = true; render(); }, text: "×" })));
+    });
+    var pending = unsavedAttachments(d);
+    if (pending.length) box.appendChild(h("div", { className: "note small", style: "margin-top:8px" },
+      "In the email but not saved yet: ",
+      pending.map(function (a, i) { return [i ? ", " : "", a.url ? h("a", { href: a.url, target: "_blank", rel: "noopener", text: a.name }) : a.name]; }),
+      ". Claude saves these on the next check, or drop them in below."));
+    var input = h("input", { type: "file", id: "file-input-" + d.id, multiple: true, "aria-label": "Add files to this property", onchange: function (e) { uploadFiles(d, e.target.files, st.kind, key); e.target.value = ""; } });
+    box.appendChild(h("div", { className: "row", style: "margin-top:10px" },
+      h("select", { id: key + "-kind", "aria-label": "File type", style: "width:auto", onchange: function (e) { st.kind = e.target.value; } }, FILE_KINDS.map(function (k) { return h("option", { value: k, text: k, selected: st.kind === k }); })),
+      input,
+      S.busy[key] ? h("span", { className: "state", text: S.busy[key] }) : null));
+    if (!storage()) box.appendChild(h("div", { className: "state", text: "File storage isn't available in this view." }));
+    if (S.err[key]) box.appendChild(h("div", { className: "state err", text: S.err[key] }));
+    return box;
+  }
+  function uploadFiles(d, list, kind, key) {
+    var store = storage(); if (!store || !list || !list.length || d._orphan) return;
+    var files = Array.prototype.slice.call(list);
+    S.busy[key] = "Uploading " + files.length + (files.length === 1 ? " file…" : " files…"); S.err[key] = null; render();
+    var added = [];
+    var chain = Promise.resolve();
+    files.forEach(function (file) {
+      chain = chain.then(function () {
+        var path = d.id + "/" + Date.now() + "-" + safeName(file.name);
+        return store.upload(path, file, { contentType: file.type || "application/octet-stream", upsert: false }).then(function (r) {
+          if (r.error) throw r.error;
+          added.push({ name: file.name, path: path, size: file.size, type: file.type || "", kind: kind === "auto" ? guessKind(file.name) : (kind || guessKind(file.name)), addedAt: new Date().toISOString(), addedBy: "Jay" });
+        });
+      });
+    });
+    chain.then(function () {
+      var cur = dealById(d.id) || d;
+      return S.db.doc("deals/" + d.id).update({ files: (cur.files || []).concat(added) });
+    }).then(function () { S.busy[key] = null; render(); })
+      .catch(function (e) {
+        S.busy[key] = null;
+        S.err[key] = "Upload failed (" + ((e && (e.message || e.code)) || "error") + ")." + (added.length ? " " + added.length + " saved before it stopped." : "");
+        if (added.length) { var cur = dealById(d.id) || d; S.db.doc("deals/" + d.id).update({ files: (cur.files || []).concat(added) }).catch(function () {}); }
+        render();
+      });
+  }
+  function openFile(f, key) {
+    var store = storage(); if (!store) return;
+    var w = window.open("", "_blank");
+    store.createSignedUrl(f.path, 600).then(function (r) {
+      if (r.error || !r.data) throw r.error || new Error("no link");
+      if (w) w.location.href = r.data.signedUrl; else window.location.href = r.data.signedUrl;
+    }).catch(function (e) { if (w) w.close(); S.err[key] = "Couldn't open " + f.name + " (" + ((e && e.message) || "error") + ")."; render(); });
+  }
+  function deleteFile(d, f, key) {
+    var store = storage(); if (!store) return;
+    store.remove([f.path]).then(function (r) {
+      if (r.error) throw r.error;
+      var cur = dealById(d.id) || d;
+      return S.db.doc("deals/" + d.id).update({ files: (cur.files || []).filter(function (x) { return x.path !== f.path; }) });
+    }).catch(function (e) { S.err[key] = "Couldn't delete (" + ((e && e.message) || "error") + ")."; render(); });
   }
 
   // ---------- Deal drawer ----------
@@ -975,6 +1081,7 @@ details.aside.drop>summary{background:var(--accent-soft)}
     if (d.agent) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "Listing agent" }),
       h("div", { text: [d.agent.name, d.agent.brokerage].filter(Boolean).join(", ") || "Unknown" }),
       h("div", { className: "small muted", text: [d.agent.phone, d.agent.email].filter(Boolean).join(" · ") })));
+    if (!d._orphan) body.appendChild(filesBox(d));
     threads.forEach(function (o) { body.appendChild(threadBox(o, d)); });
     if (!d._orphan) {
       if (!threads.length || S.composeOpen[d.id] || S.ideas["new-" + d.id]) body.appendChild(h("div", { className: "box" }, emailPanel("first", "new-" + d.id, null, d)));
