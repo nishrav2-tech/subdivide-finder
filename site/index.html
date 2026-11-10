@@ -864,16 +864,24 @@ input[type=file]{font-size:12.5px;max-width:100%}
     // Summary of the spreadsheet
     root.appendChild(h("h2", { className: "sec" }, "Summary", h("span", { className: "muted", text: "from the search spreadsheet" })));
     var real = S.deals.filter(function (d) { return d.runId === r.id; });
-    var acres = real.reduce(function (s, d) { return s + (+d.acres || 0); }, 0);
-    var asking = real.reduce(function (s, d) { return s + (+d.asking || 0); }, 0);
+    var ids = {}; real.forEach(function (d) { ids[d.id] = 1; });
+    var th = S.outreach.filter(function (o) { return ids[o.dealId] || o.runId === r.id || o.search === r.id; });
+    var agentKey = function (o) { return String((o.to || [])[0] || o.agent || o.threadId).toLowerCase(); };
+    var reached = {}, replied = {}, bounced = 0, waiting = 0;
+    th.forEach(function (o) {
+      if (o.delivery === "bounced") { bounced++; return; }
+      reached[agentKey(o)] = 1;
+      if (inboundOf(o).length) replied[agentKey(o)] = 1; else waiting++;
+    });
+    var nReached = Object.keys(reached).length, nReplied = Object.keys(replied).length;
     var sc = {}; real.forEach(function (d) { sc[d.screen] = (sc[d.screen] || 0) + 1; });
     var viable = real.filter(function (d) { return d.dealClass === "Viable"; }).length;
     root.appendChild(h("div", { className: "stats" },
       stat("Listings reviewed", sm.listings != null ? sm.listings : "—", "on Zillow and Redfin"),
       stat("Shortlisted", real.length, "over " + (r.minAcres || 10) + " ac, checked in Land Portal"),
       stat("Passed screens", sc["Ready to offer"] || 0, ((sc["Verify with agent"] || 0) + (sc["Need APN"] || 0)) + " more need the agent"),
-      stat("Total acres", Math.round(acres).toLocaleString("en-US"), "across the shortlist"),
-      stat("Total asking", compact(asking), "median " + money(median(real.map(function (d) { return +d.ppa; }))) + "/ac"),
+      stat("Agents reached", nReached, (th.length - bounced) + " properties emailed" + (bounced ? " · " + bounced + " bounced" : "")),
+      stat("Agents replied", nReplied, nReached ? Math.round(nReplied / nReached * 100) + "% reply rate · " + waiting + " waiting" : "No emails sent yet"),
       stat("Viable at 2x", viable, (real.length - viable) + " negotiable")));
 
     var screens = h("div", { className: "panel" }, h("h3", { text: "Screening results" }));
