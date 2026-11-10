@@ -185,6 +185,23 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .prep-row .pe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .prep-row .pe input{flex:1;min-width:160px}
 .prep-later{margin-top:8px}
+.calc-in{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;align-items:end;margin-top:10px}
+.calc-in label.f input{min-width:0}
+.calc-sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 10px}
+.calc-sum>div{background:var(--surface-2);border-radius:var(--r-md);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.calc-sum span{font-size:11.5px;color:var(--ink-3)}
+.calc-sum b{font-size:15px;font-variant-numeric:tabular-nums}
+.calc-sum small{font-size:11.5px;color:var(--ink-2)}
+.calc-wrap{overflow-x:auto}
+.calc-t{font-size:12.5px;width:100%}
+.calc-t td,.calc-t th{font-variant-numeric:tabular-nums;vertical-align:top;padding:7px 6px}
+.calc-t th{padding:0 6px 6px;letter-spacing:.02em}
+.calc-t .sub{font-size:11px;color:var(--ink-3);font-weight:400}
+.calc-t .sub.neg{color:var(--danger)}
+.calc-t td.r,.calc-t th.r{text-align:right}
+.calc-t tr.best td{background:var(--success-soft)}
+.neg{color:var(--danger)}
+@media (max-width:640px){.calc-in{grid-template-columns:repeat(2,minmax(0,1fr))}.calc-sum{grid-template-columns:1fr}}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 6px}
 .chip{border:1px solid var(--border-strong);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:5px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
 .chip:hover{border-color:var(--danger)}
@@ -1205,6 +1222,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       fig("LP match", d.lpMatch || ""),
       fig("Days on market", d.days != null ? d.days : ""),
       fig("Deal class", d.dealClass || ""))));
+    if (!d._orphan) body.appendChild(exitCalcBox(d, r));
     if (d.agent) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "Listing agent" }),
       h("div", { text: [d.agent.name, d.agent.brokerage].filter(Boolean).join(", ") || "Unknown" }),
       h("div", { className: "small muted", text: [d.agent.phone, d.agent.email].filter(Boolean).join(" · ") })));
@@ -1347,6 +1365,180 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("button", { className: "btn primary", type: "button", onclick: function () { onSave(st.instr); }, text: btnText }),
         onCancel ? h("button", { className: "btn ghost", type: "button", onclick: onCancel, text: "Cancel" }) : null,
         extras));
+  }
+
+
+  // ---------- Exit scenarios: the Utopian CRM subdivide calculator, per property ----------
+  // Same math as the CRM Markets tab (mkCalcRows): county lot sales by size (market_counties.ppa/bins),
+  // split options from 2 lots up to Max lots, net resale after discount and costs, offer at the target multiple.
+  var MK_EDGES = [0, 1, 2, 3, 5, 7.5, 10, 15, 20, 30, 40, 50, 75, 100, 150, 250];
+  var MK_CALC_SIZES = [1, 2, 3, 4, 5, 7.5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+  var MK_CALC_MIN_N = 8;
+  S.mk = {};
+  function dealFips(d) {
+    var st = window.SF_COUNTIES && window.SF_COUNTIES[d.state || ""];
+    if (!st || !d.county) return null;
+    var want = String(d.county).toLowerCase().replace(/ county$/, "").replace(/[^a-z]/g, "");
+    for (var i = 0; i < st.c.length; i++) if (st.c[i][1].toLowerCase().replace(/[^a-z]/g, "") === want) return st.f + st.c[i][0];
+    return null;
+  }
+  function loadMk(fips) {
+    if (!fips || S.mk[fips] !== undefined || !window.SF || !window.SF.sb) return;
+    S.mk[fips] = "loading";
+    window.SF.sb.from("market_counties").select("ppa,bins,ppa_at").eq("fips", fips).maybeSingle().then(function (r) {
+      S.mk[fips] = (r && !r.error && r.data && r.data.ppa) ? r.data : null; render();
+    }, function () { S.mk[fips] = null; render(); });
+  }
+  function mkPpaDist(p, i0, i1) {
+    var e = p.e, grid = p.s12 || [], counts = e.map(function () { return 0; });
+    for (var i = i0; i <= i1; i++) (grid[i] || []).forEach(function (v, b) { counts[b] += v; });
+    var n = counts.reduce(function (a, b) { return a + b; }, 0);
+    if (!n) return { n: 0 };
+    var hiOf = function (b) { return b + 1 < e.length ? e[b + 1] : e[b] * 1.5; };
+    var q = function (f) { var cum = 0; for (var b = 0; b < counts.length; b++) { if (cum + counts[b] >= n * f) return e[b] + (counts[b] ? (n * f - cum) / counts[b] : 0) * (hiOf(b) - e[b]); cum += counts[b]; } return e[e.length - 1]; };
+    var mid = function (b) { return (e[b] + hiOf(b)) / 2; };
+    var mean = counts.reduce(function (a, c, b) { return a + c * mid(b); }, 0) / n;
+    var sd = Math.sqrt(counts.reduce(function (a, c, b) { return a + c * Math.pow(mid(b) - mean, 2); }, 0) / n);
+    return { n: n, p25: q(0.25), med: q(0.5), p75: q(0.75), mean: mean, sd: sd };
+  }
+  function mkPpaNear(p, acres) {
+    var i = 0; while (i + 1 < MK_EDGES.length && acres >= MK_EDGES[i + 1]) i++;
+    var lo = Math.max(1, i), hi = Math.max(1, i), d = mkPpaDist(p, lo, hi);
+    while (d.n < MK_CALC_MIN_N && (lo > 1 || hi < MK_EDGES.length - 1)) {
+      if (lo > 1 && (hi >= MK_EDGES.length - 1 || (hi - i) >= (i - lo))) lo--; else hi++;
+      d = mkPpaDist(p, lo, hi);
+    }
+    var hiEdge = hi + 1 < MK_EDGES.length ? MK_EDGES[hi + 1] : null;
+    d.lo = lo; d.hi = hi; d.label = hiEdge == null ? MK_EDGES[lo] + "+ ac" : MK_EDGES[lo] + " to " + hiEdge + " ac";
+    return d;
+  }
+  function mkCalcRows(row, cfg) {
+    var p = row.ppa, A = +cfg.acres;
+    if (!p || !p.e || !(A > 0)) return null;
+    var ask = +cfg.ask > 0 ? +cfg.ask : 0, disc = (cfg.discPct || 0) / 100, cost = (cfg.costPct || 0) / 100, mult = cfg.mult || 2;
+    var whole = mkPpaNear(p, A), wholeVal = whole.n ? A * whole.med * (1 - disc) : null;
+    var bins = row.bins, seen = {}, rows = [];
+    var sellOf = function (d, N) {
+      if (!bins || !bins.a) return null;
+      var sum = function (k) { return (bins[k] || []).slice(d.lo, d.hi + 1).reduce(function (a, b) { return a + (+b || 0); }, 0); };
+      var active = sum("a"), r6 = sum("s6") / 6, r12 = sum("s12") / 12;
+      var mos = [r6, r12].filter(function (x) { return x > 0; }).map(function (x) { return (active + N) / x; });
+      return { active: active, r6: r6, r12: r12, lo: mos.length ? Math.min.apply(null, mos) : null, hi: mos.length ? Math.max.apply(null, mos) : null };
+    };
+    var mk = function (N, L, d, kind) {
+      var net = function (ppa) { return N * L * ppa * (1 - disc) * (1 - cost); };
+      var o = { kind: kind, N: N, L: L, d: d, sell: sellOf(d, kind === "whole" ? 0 : N),
+        netLow: net(d.p25), netMed: net(d.med), netHigh: net(d.p75),
+        offerLow: net(d.p25) / mult, offerHigh: net(d.med) / mult, cv: d.med ? d.sd / d.med : 0 };
+      o.capped = kind !== "whole" && wholeVal != null && o.offerHigh > wholeVal;
+      o.multLow = ask ? o.netLow / ask : null; o.multMed = ask ? o.netMed / ask : null;
+      return o;
+    };
+    MK_CALC_SIZES.forEach(function (sz) {
+      if (sz > A / 2) return;
+      var N = Math.floor(A / sz);
+      if (N < 2 || N > (cfg.maxLots || 8) || seen[N]) return;
+      seen[N] = 1;
+      var L = A / N, d = mkPpaNear(p, L);
+      if (!d.n) return;
+      rows.push(mk(N, L, d, "split"));
+    });
+    rows.sort(function (a, b) { return b.offerHigh - a.offerHigh || b.offerLow - a.offerLow; });
+    if (ask) rows.sort(function (x, y) { return y.multMed - x.multMed || y.multLow - x.multLow; });
+    var wholeRow = whole.n ? mk(1, A, whole, "whole") : null;
+    return { A: A, ask: ask, whole: whole, wholeVal: wholeVal, rows: rows, wholeRow: wholeRow, mult: mult };
+  }
+  function calcCfg(d, r) {
+    var c = (r && r.criteria) || ((S.settings.criteria || {}).criteria) || {};
+    var saved = d.calc || {};
+    var def = { acres: d.acres || "", ask: d.asking || "", discPct: c.discount != null ? c.discount : 10, costPct: c.costs != null ? c.costs : 12, mult: c.targetMultiple || 2, maxLots: c.maxLots || 8 };
+    var o = {}; Object.keys(def).forEach(function (k) { o[k] = saved[k] != null && saved[k] !== "" ? saved[k] : def[k]; });
+    return o;
+  }
+  var kM = function (v) { return (v < 0 ? "-" : "") + compact(Math.abs(v)); };
+  var moTxt = function (m) { return m >= 100 ? "99+" : m < 10 ? (Math.round(m * 10) / 10).toString() : String(Math.round(m)); };
+  function sellTxt(t) {
+    if (!t) return "";
+    if (t.lo == null) return "No sales";
+    return (moTxt(t.lo) === moTxt(t.hi) ? moTxt(t.lo) : moTxt(t.lo) + " to " + moTxt(t.hi)) + " mo";
+  }
+  function exitCalcBox(d, r) {
+    var fips = dealFips(d), key = "calc-" + d.id;
+    var st = S.local[key] || (S.local[key] = calcCfg(d, r));
+    var box = h("div", { className: "box" }, h("div", { className: "row", style: "justify-content:space-between" },
+      h("span", { className: "lbl", style: "margin:0", text: "Exit scenarios · CRM subdivide calculator" }),
+      h("span", { className: "small muted", text: fips && S.mk[fips] && S.mk[fips].ppa_at ? d.county + " Co. lot sales, pulled " + fmtDT(S.mk[fips].ppa_at) : "" })));
+    var num = function (k, label, attrs) {
+      return h("label", { className: "f" }, label, h("input", Object.assign({ type: "number", id: key + "-" + k, value: st[k] === "" ? "" : String(st[k]),
+        oninput: function (e) { st[k] = e.target.value; },
+        onkeydown: function (e) { if (e.key === "Enter") { e.preventDefault(); runCalc(d, st, key); } } }, attrs || {})));
+    };
+    box.appendChild(h("div", { className: "calc-in" },
+      num("acres", "Tract acres", { step: "0.1", min: "1" }),
+      num("ask", "Price ($)", { step: "1000", min: "0", placeholder: "asking" }),
+      num("discPct", "Discount %", { step: "1", min: "0", max: "90", title: "Knock off county lot prices for defects: access, floodplain, slope, shape" }),
+      num("costPct", "Costs %", { step: "0.5", min: "0", max: "90", title: "Survey, split, closing and sales commissions as a share of resale" }),
+      num("mult", "Target multiple", { step: "0.1", min: "1" }),
+      num("maxLots", "Max lots", { step: "1", min: "2", max: "60" }),
+      h("button", { className: "btn primary", type: "button", onclick: function () { runCalc(d, st, key); }, text: "Calculate" })));
+    if (!fips) { box.appendChild(h("p", { className: "small muted", text: "Couldn't match " + (d.county || "this county") + " to the CRM's county list." })); return box; }
+    loadMk(fips);
+    var row = S.mk[fips];
+    if (row === "loading" || row === undefined) { box.appendChild(h("p", { className: "small muted", text: "Loading " + d.county + " County lot sales…" })); return box; }
+    if (!row) { box.appendChild(h("p", { className: "small muted", text: "No lot sales pulled for " + d.county + " County yet. Pull price per acre for it on the CRM Markets tab, then reopen this property." })); return box; }
+    var res = mkCalcRows(row, { acres: +st.acres, ask: +st.ask, discPct: +st.discPct, costPct: +st.costPct, mult: +st.mult || 2, maxLots: Math.round(+st.maxLots) || 8 });
+    if (!res) { box.appendChild(h("p", { className: "small muted", text: "Enter the tract acres and press Calculate." })); return box; }
+    if (!res.rows.length && !res.wholeRow) { box.appendChild(h("p", { className: "small muted", text: "No split options for " + res.A + " acres within " + st.maxLots + " lots." })); return box; }
+    var best = res.rows[0] || res.wholeRow;
+    var sum = h("div", { className: "calc-sum" });
+    if (res.ask) sum.appendChild(h("div", null, h("span", { text: "Multiple at " + money(res.ask) }), h("b", { className: best.multMed < res.mult ? "neg" : "", text: best.multLow.toFixed(2) + "x to " + best.multMed.toFixed(2) + "x" }),
+      h("small", { text: "Profit " + kM(best.netLow - res.ask) + " to " + kM(best.netMed - res.ask) + " · best: " + (best.kind === "whole" ? "sell whole" : best.N + " x " + best.L.toFixed(1) + " ac") }),
+      best.multMed < res.mult ? h("small", { className: "neg", text: "Below " + res.mult + "x: offer " + kM(best.offerLow) + " to " + kM(best.offerHigh) + " instead" }) : null,
+      res.wholeVal != null && res.ask > res.wholeVal ? h("small", { className: "neg", text: "Price above market for the whole tract (" + kM(res.wholeVal) + ")" }) : null));
+    else sum.appendChild(h("div", null, h("span", { text: "Offer range at " + res.mult + "x" }), h("b", { text: money(best.offerLow) + " to " + money(best.offerHigh) }),
+      h("small", { text: "Profit " + kM(best.netMed - best.offerHigh) + " to " + kM(best.netMed - best.offerLow) })));
+    sum.appendChild(h("div", null, h("span", { text: "Net resale, best split" }), h("b", { text: money(best.netLow) + " to " + money(best.netHigh) }), h("small", { text: best.sell && best.sell.lo != null ? sellTxt(best.sell) + " to sell out" : "" })));
+    sum.appendChild(h("div", null, h("span", { text: "Tract sold whole today" }), h("b", { text: res.wholeVal != null ? "about " + money(res.wholeVal) : "—" }), h("small", { text: res.whole.n ? kM(res.whole.med) + "/ac median" : "No sales" })));
+    box.appendChild(sum);
+    var tb = h("tbody");
+    var all = res.rows.slice(); if (res.wholeRow) all.push(res.wholeRow);
+    all.forEach(function (x) {
+      var flags = [];
+      if (x.capped) flags.push(x.offerLow > res.wholeVal ? "above market value" : "top end above market");
+      if (x.d.n < MK_CALC_MIN_N) flags.push("thin data");
+      if (x.cv > 0.6) flags.push("wide spread");
+      var profit = res.ask ? [x.netLow - res.ask, x.netMed - res.ask] : [x.netMed - x.offerHigh, x.netMed - x.offerLow];
+      tb.appendChild(h("tr", { className: x === best ? "best" : "" },
+        h("td", null, h("b", { text: x.kind === "whole" ? "Sell whole" : x.N + " lots" }), x.kind === "whole" ? null : " x " + x.L.toFixed(x.L < 10 ? 1 : 0) + " ac",
+          h("div", { className: "sub", text: sellTxt(x.sell) ? sellTxt(x.sell) + " to sell" : "" }),
+          flags.length ? h("div", { className: "sub neg", text: flags.join(", ") }) : null),
+        h("td", { className: "r", title: x.d.n + " sales, " + x.d.label }, h("b", { text: kM(x.d.med) }), h("div", { className: "sub", text: kM(x.d.p25) + " to " + kM(x.d.p75) })),
+        h("td", { className: "r", text: kM(x.netLow) + " to " + kM(x.netHigh) }),
+        h("td", { className: "r" }, h("b", { text: kM(x.offerLow) + " to " + kM(x.offerHigh) }),
+          res.ask ? h("div", { className: "sub" + (x.multMed < res.mult ? " neg" : ""), text: x.multLow.toFixed(2) + "x to " + x.multMed.toFixed(2) + "x at price" }) : null),
+        h("td", { className: "r" }, h("span", { className: profit[0] < 0 ? "neg" : "", text: kM(profit[0]) }), " to ", h("span", { className: profit[1] < 0 ? "neg" : "", text: kM(profit[1]) })),
+        h("td", { className: "r" }, h("button", { className: "btn sm ghost", type: "button", title: "Put this offer range and lot count into Your review", onclick: function () { useExit(d, x); }, text: "Use" }))));
+    });
+    box.appendChild(h("div", { className: "calc-wrap" }, h("table", { className: "t calc-t" },
+      h("thead", null, h("tr", null, h("th", { text: "Exit (" + res.A + " ac)" }), h("th", { className: "r", text: "Lot $/ac" }), h("th", { className: "r", text: "Net resale" }),
+        h("th", { className: "r", text: "Offer at " + res.mult + "x" }), h("th", { className: "r", text: "Profit" }), h("th"))),
+      tb)));
+    box.appendChild(h("p", { className: "small muted", text: "Same math as the CRM Markets calculator: county lot sales over the last 12 months near each lot size (widened until there are 8 sales), less your discount and costs. Offer low uses 25th-percentile prices, high uses the median. Use copies that offer range into Your review." }));
+    return box;
+  }
+  function runCalc(d, st, key) {
+    var n = function (v, def) { var x = parseFloat(v); return isFinite(x) ? x : def; };
+    var cfg = { acres: n(st.acres, ""), ask: n(st.ask, ""), discPct: Math.min(90, Math.max(0, n(st.discPct, 0))), costPct: Math.min(90, Math.max(0, n(st.costPct, 0))), mult: Math.max(1, n(st.mult, 2)), maxLots: Math.min(60, Math.max(2, Math.round(n(st.maxLots, 8)))) };
+    Object.assign(st, cfg);
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    d.calc = cfg; updateDeal(d, { calc: cfg }); render();
+  }
+  function useExit(d, x) {
+    var key = "review-" + d.id, rv = d.review || {};
+    var st = S.local[key];
+    var review = Object.assign({}, rv, { offerOpen: Math.round(x.offerLow), offerMax: Math.round(x.offerHigh), resale: rv.resale != null ? rv.resale : Math.round(x.netMed), lots: x.kind === "whole" ? 1 : x.N, updatedAt: new Date().toISOString() });
+    if (st) { st.offerOpen = String(review.offerOpen); st.offerMax = String(review.offerMax); if (rv.resale == null) st.resale = String(review.resale); st.lots = String(review.lots); }
+    d.review = review; updateDeal(d, { review: review }); render();
   }
 
   // Jay's own review notes (deal.review)
