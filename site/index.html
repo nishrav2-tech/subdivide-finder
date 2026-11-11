@@ -660,8 +660,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { k: "targetMultiple", label: "Target multiple", unit: "x", def: 2, help: "Offer = asking x CRM multiple / target." },
     { k: "discount", label: "Lot price discount", unit: "%", def: 10, help: "Applied to county lot prices in the CRM calculator." },
     { k: "costs", label: "Subdivide and sale costs", unit: "%", def: 12, help: "Survey, roads, closing and commissions." },
-    { k: "maxLots", label: "Most lots per split", unit: "lots", def: 8, help: "Best split the calculator may pick." },
-    { k: "maxMonths", label: "Sell-out cap", unit: "months", def: 36, help: "Use the best split that sells out within this." },
+    { k: "maxLotsPer10", label: "Max lots per 10 acres", unit: "lots", def: 4, help: "Scales with tract size: at 4, a 25-acre tract can split into up to 10 lots. The calculator uses the fewest lots that reach the target multiple." },
+    { k: "maxMonths", label: "Sell-out cap", unit: "months", def: 36, help: "Splits that take longer than this to sell out get flagged." },
     { k: "frontageMin", label: "Frontage per lot, minimum", unit: "ft", def: 50, help: "Each lot needs the greater of this..." },
     { k: "frontagePerAcre", label: "Frontage per acre of lot", unit: "ft/ac", def: 20, help: "...or this many feet per acre of lot." },
     { k: "negotiableBand", label: "Negotiable band", unit: "%", def: 20, help: "Asking up to this far above the 2x offer still makes the list." },
@@ -687,7 +687,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   }
   function critSummary(c) {
     var fr = "frontage " + c.frontageMin + " ft or " + c.frontagePerAcre + " ft/ac per lot";
-    return [c.minAcres + (c.maxAcres ? " to " + c.maxAcres : "+") + " ac", c.targetMultiple + "x target", "max " + c.maxLots + " lots", c.maxMonths + "-month sell-out", fr].join(" · ");
+    return [c.minAcres + (c.maxAcres ? " to " + c.maxAcres : "+") + " ac", c.targetMultiple + "x target", "fewest lots to " + c.targetMultiple + "x, max " + c.maxLotsPer10 + " per 10 ac", c.maxMonths + "-month sell-out", fr].join(" · ");
   }
   function critInputs(c, prefix, base, onChange) {
     var grid = h("div", { className: "crit-grid" });
@@ -1015,9 +1015,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
       (pc || (d.files && d.files.length)) ? h("span", { className: "m", text: [pc ? "Review facts " + pc.known + "/" + pc.total : "", (d.files && d.files.length) ? d.files.length + (d.files.length === 1 ? " file" : " files") : ""].filter(Boolean).join(" · ") }) : null,
-      (unreadForDeal(d) || flag || killer || (pc && pc.issue) || c.id === "contact") ? h("span", { className: "tags" },
+      (unreadForDeal(d) || flag || killer || (pc && (pc.issue || pc.verify)) || c.id === "contact") ? h("span", { className: "tags" },
         unreadForDeal(d) ? pill(unreadForDeal(d) + " unread email" + (unreadForDeal(d) === 1 ? "" : "s"), "var(--danger-soft)", "var(--danger)", true) : null,
         pc && pc.issue ? pill(pc.issue + (pc.issue === 1 ? " problem found" : " problems found"), "var(--warn-soft)", "var(--warn-ink)", true) : null,
+        pc && pc.verify ? pill("Frontage: Land Portal only", "var(--warn-soft)", "var(--warn-ink)") : null,
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
         killer ? pill(killer, "var(--danger-soft)", "var(--danger)", true) : null,
         c.id === "contact" ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null) : null);
@@ -1053,7 +1054,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function prepItem(d, k) { var it = d.prep && d.prep.items && d.prep.items[k]; return it && PREP_STATES[it.s] ? it : { s: "missing" }; }
   function prepCount(d) {
     var n = { known: 0, issue: 0, total: 0 };
-    PREP_ITEMS.forEach(function (p) { if (!p.req) return; n.total++; var s = prepItem(d, p.k).s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; });
+    PREP_ITEMS.forEach(function (p) { if (!p.req) return; n.total++; var it = prepItem(d, p.k), s = it.s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; if (it.verify && (s === "ok" || s === "issue")) n.verify = (n.verify || 0) + 1; });
     return n;
   }
   function prepBox(d) {
@@ -1084,7 +1085,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       }
       list.appendChild(h("div", { className: "prep-row" },
         h("span", { className: "pt", text: pi.t }),
-        h("span", null, pill(st.t, st.pb, st.pc, true)),
+        h("span", null, pill(st.t, st.pb, st.pc, true), it.verify ? pill("Verify", "var(--warn-soft)", "var(--warn-ink)") : null),
         h("span", { className: "pv" }, h("span", { text: it.v || "" }), it.src ? h("span", { className: "muted small", text: " · " + it.src }) : null),
         h("button", { className: "btn sm ghost", type: "button", "aria-label": "Edit " + pi.t, onclick: function () { S.local[ek] = { s: it.s === "asked" ? "missing" : it.s, v: it.v || "" }; render(); }, text: "Edit" })));
       list = list0;
@@ -1505,24 +1506,30 @@ input[type=file]{font-size:12.5px;max-width:100%}
       o.multLow = ask ? o.netLow / ask : null; o.multMed = ask ? o.netMed / ask : null;
       return o;
     };
-    MK_CALC_SIZES.forEach(function (sz) {
-      if (sz > A / 2) return;
-      var N = Math.floor(A / sz);
-      if (N < 2 || N > (cfg.maxLots || 8) || seen[N]) return;
-      seen[N] = 1;
+    // Every lot count from 2 up to the cap (max lots per 10 acres, scaled to the tract), fewest lots first.
+    var per10 = +cfg.maxLotsPer10 > 0 ? +cfg.maxLotsPer10 : 4, nMax = Math.max(2, Math.floor(A * per10 / 10 + 1e-9));
+    for (var N = 2; N <= nMax; N++) {
       var L = A / N, d = mkPpaNear(p, L);
-      if (!d.n) return;
-      rows.push(mk(N, L, d, "split"));
-    });
-    rows.sort(function (a, b) { return b.offerHigh - a.offerHigh || b.offerLow - a.offerLow; });
-    if (ask) rows.sort(function (x, y) { return y.multMed - x.multMed || y.multLow - x.multLow; });
+      if (!d.n) continue;
+      var o = mk(N, L, d, "split");
+      o.slow = !!(cfg.maxMonths && o.sell && o.sell.lo != null && o.sell.lo > cfg.maxMonths);
+      rows.push(o);
+    }
     var wholeRow = whole.n ? mk(1, A, whole, "whole") : null;
-    return { A: A, ask: ask, whole: whole, wholeVal: wholeVal, rows: rows, wholeRow: wholeRow, mult: mult };
+    // Pick the fewest lots that reach the target multiple at the price. If none does, the lot count with the best multiple.
+    var best = null, reached = false;
+    if (ask) {
+      if (wholeRow && wholeRow.multMed >= mult) { best = wholeRow; reached = true; }
+      for (var i = 0; !best && i < rows.length; i++) if (rows[i].multMed >= mult) { best = rows[i]; reached = true; }
+      if (!best) rows.forEach(function (x) { if (!best || x.multMed > best.multMed) best = x; });
+    } else rows.forEach(function (x) { if (!best || x.offerHigh > best.offerHigh) best = x; });
+    if (!best) best = wholeRow;
+    return { A: A, ask: ask, whole: whole, wholeVal: wholeVal, rows: rows, wholeRow: wholeRow, mult: mult, best: best, reached: reached, nMax: nMax, per10: per10 };
   }
   function calcCfg(d, r) {
     var c = (r && r.criteria) || ((S.settings.criteria || {}).criteria) || {};
     var saved = d.calc || {};
-    var def = { acres: d.acres || "", ask: d.asking || "", discPct: c.discount != null ? c.discount : 10, costPct: c.costs != null ? c.costs : 12, mult: c.targetMultiple || 2, maxLots: c.maxLots || 8 };
+    var def = { acres: d.acres || "", ask: d.asking || "", discPct: c.discount != null ? c.discount : 10, costPct: c.costs != null ? c.costs : 12, mult: c.targetMultiple || 2, maxLotsPer10: c.maxLotsPer10 || 4, maxMonths: c.maxMonths || 36 };
     var o = {}; Object.keys(def).forEach(function (k) { o[k] = saved[k] != null && saved[k] !== "" ? saved[k] : def[k]; });
     return o;
   }
@@ -1550,34 +1557,42 @@ input[type=file]{font-size:12.5px;max-width:100%}
       num("discPct", "Discount %", { step: "1", min: "0", max: "90", title: "Knock off county lot prices for defects: access, floodplain, slope, shape" }),
       num("costPct", "Costs %", { step: "0.5", min: "0", max: "90", title: "Survey, split, closing and sales commissions as a share of resale" }),
       num("mult", "Target multiple", { step: "0.1", min: "1" }),
-      num("maxLots", "Max lots", { step: "1", min: "2", max: "60" }),
+      num("maxLotsPer10", "Max lots / 10 ac", { step: "0.5", min: "0.5", max: "40", title: "Most lots allowed per 10 acres; scales with the tract size" }),
       h("button", { className: "btn primary", type: "button", onclick: function () { runCalc(d, st, key); }, text: "Calculate" })));
     if (!fips) { box.appendChild(h("p", { className: "small muted", text: "Couldn't match " + (d.county || "this county") + " to the CRM's county list." })); return box; }
     loadMk(fips);
     var row = S.mk[fips];
     if (row === "loading" || row === undefined) { box.appendChild(h("p", { className: "small muted", text: "Loading " + d.county + " County lot sales…" })); return box; }
     if (!row) { box.appendChild(h("p", { className: "small muted", text: "No lot sales pulled for " + d.county + " County yet. Pull price per acre for it on the CRM Markets tab, then reopen this property." })); return box; }
-    var res = mkCalcRows(row, { acres: +st.acres, ask: +st.ask, discPct: +st.discPct, costPct: +st.costPct, mult: +st.mult || 2, maxLots: Math.round(+st.maxLots) || 8 });
+    var res = mkCalcRows(row, { acres: +st.acres, ask: +st.ask, discPct: +st.discPct, costPct: +st.costPct, mult: +st.mult || 2, maxLotsPer10: +st.maxLotsPer10 || 4, maxMonths: +st.maxMonths || 36 });
     if (!res) { box.appendChild(h("p", { className: "small muted", text: "Enter the tract acres and press Calculate." })); return box; }
-    if (!res.rows.length && !res.wholeRow) { box.appendChild(h("p", { className: "small muted", text: "No split options for " + res.A + " acres within " + st.maxLots + " lots." })); return box; }
-    var best = res.rows[0] || res.wholeRow;
+    if (!res.rows.length && !res.wholeRow) { box.appendChild(h("p", { className: "small muted", text: "No split options for " + res.A + " acres at " + st.maxLotsPer10 + " lots per 10 acres." })); return box; }
+    var best = res.best;
+    var bestTxt = best.kind === "whole" ? "sell whole" : best.N + " lots of " + best.L.toFixed(1) + " ac";
+    box.appendChild(h("div", { className: "note" + (res.ask && !res.reached ? " neg" : ""), style: "margin:10px 0 0",
+      text: !res.ask ? "No price entered: showing the split with the highest offer at " + res.mult + "x." :
+        res.reached ? "Fewest lots that reach " + res.mult + "x at " + money(res.ask) + ": " + bestTxt + " (cap " + res.nMax + " lots at " + res.per10 + " per 10 ac)." :
+        "No split up to " + res.nMax + " lots (" + res.per10 + " per 10 ac) reaches " + res.mult + "x at " + money(res.ask) + ". Best is " + bestTxt + " at " + best.multMed.toFixed(2) + "x; offer " + kM(best.offerLow) + " to " + kM(best.offerHigh) + " to hit " + res.mult + "x." }));
     var sum = h("div", { className: "calc-sum" });
     if (res.ask) sum.appendChild(h("div", null, h("span", { text: "Multiple at " + money(res.ask) }), h("b", { className: best.multMed < res.mult ? "neg" : "", text: best.multLow.toFixed(2) + "x to " + best.multMed.toFixed(2) + "x" }),
-      h("small", { text: "Profit " + kM(best.netLow - res.ask) + " to " + kM(best.netMed - res.ask) + " · best: " + (best.kind === "whole" ? "sell whole" : best.N + " x " + best.L.toFixed(1) + " ac") }),
+      h("small", { text: "Profit " + kM(best.netLow - res.ask) + " to " + kM(best.netMed - res.ask) + " · " + bestTxt }),
       best.multMed < res.mult ? h("small", { className: "neg", text: "Below " + res.mult + "x: offer " + kM(best.offerLow) + " to " + kM(best.offerHigh) + " instead" }) : null,
       res.wholeVal != null && res.ask > res.wholeVal ? h("small", { className: "neg", text: "Price above market for the whole tract (" + kM(res.wholeVal) + ")" }) : null));
     else sum.appendChild(h("div", null, h("span", { text: "Offer range at " + res.mult + "x" }), h("b", { text: money(best.offerLow) + " to " + money(best.offerHigh) }),
       h("small", { text: "Profit " + kM(best.netMed - best.offerHigh) + " to " + kM(best.netMed - best.offerLow) })));
-    sum.appendChild(h("div", null, h("span", { text: "Net resale, best split" }), h("b", { text: money(best.netLow) + " to " + money(best.netHigh) }), h("small", { text: best.sell && best.sell.lo != null ? sellTxt(best.sell) + " to sell out" : "" })));
+    sum.appendChild(h("div", null, h("span", { text: "Net resale, " + (best.kind === "whole" ? "sold whole" : best.N + " lots") }), h("b", { text: money(best.netLow) + " to " + money(best.netHigh) }), h("small", { text: best.sell && best.sell.lo != null ? sellTxt(best.sell) + " to sell out" : "" })));
     sum.appendChild(h("div", null, h("span", { text: "Tract sold whole today" }), h("b", { text: res.wholeVal != null ? "about " + money(res.wholeVal) : "—" }), h("small", { text: res.whole.n ? kM(res.whole.med) + "/ac median" : "No sales" })));
     box.appendChild(sum);
     var tb = h("tbody");
-    var all = res.rows.slice(); if (res.wholeRow) all.push(res.wholeRow);
+    // Show the lot counts around the pick (fewest first), at most 12 rows, plus selling whole.
+    var bi = res.rows.indexOf(best), end = Math.min(res.rows.length, Math.max(bi, 0) + 4), start = Math.max(0, end - 12);
+    var all = res.rows.slice(start, end); if (res.wholeRow) all.push(res.wholeRow);
     all.forEach(function (x) {
       var flags = [];
       if (x.capped) flags.push(x.offerLow > res.wholeVal ? "above market value" : "top end above market");
       if (x.d.n < MK_CALC_MIN_N) flags.push("thin data");
       if (x.cv > 0.6) flags.push("wide spread");
+      if (x.slow) flags.push("slower than " + st.maxMonths + " mo");
       var profit = res.ask ? [x.netLow - res.ask, x.netMed - res.ask] : [x.netMed - x.offerHigh, x.netMed - x.offerLow];
       tb.appendChild(h("tr", { className: x === best ? "best" : "" },
         h("td", null, h("b", { text: x.kind === "whole" ? "Sell whole" : x.N + " lots" }), x.kind === "whole" ? null : " x " + x.L.toFixed(x.L < 10 ? 1 : 0) + " ac",
@@ -1594,12 +1609,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("thead", null, h("tr", null, h("th", { text: "Exit (" + res.A + " ac)" }), h("th", { className: "r", text: "Lot $/ac" }), h("th", { className: "r", text: "Net resale" }),
         h("th", { className: "r", text: "Offer at " + res.mult + "x" }), h("th", { className: "r", text: "Profit" }), h("th"))),
       tb)));
-    box.appendChild(h("p", { className: "small muted", text: "Same math as the CRM Markets calculator: county lot sales over the last 12 months near each lot size (widened until there are 8 sales), less your discount and costs. Offer low uses 25th-percentile prices, high uses the median. Use copies that offer range into Your review." }));
+    if (res.rows.length > all.length - (res.wholeRow ? 1 : 0)) box.appendChild(h("p", { className: "small muted", text: "Showing " + all.filter(function (x) { return x.kind !== "whole"; }).map(function (x) { return x.N; }).join(", ") + " lots of the 2 to " + res.nMax + " allowed." }));
+    box.appendChild(h("p", { className: "small muted", text: "Same math as the CRM Markets calculator: county lot sales over the last 12 months near each lot size (widened until there are 8 sales), less your discount and costs. Offer low uses 25th-percentile prices, high uses the median. The pick is the fewest lots that reach your target multiple at the price, up to your max lots per 10 acres. Use copies that offer range into Your review." }));
     return box;
   }
   function runCalc(d, st, key) {
     var n = function (v, def) { var x = parseFloat(v); return isFinite(x) ? x : def; };
-    var cfg = { acres: n(st.acres, ""), ask: n(st.ask, ""), discPct: Math.min(90, Math.max(0, n(st.discPct, 0))), costPct: Math.min(90, Math.max(0, n(st.costPct, 0))), mult: Math.max(1, n(st.mult, 2)), maxLots: Math.min(60, Math.max(2, Math.round(n(st.maxLots, 8)))) };
+    var cfg = { acres: n(st.acres, ""), ask: n(st.ask, ""), discPct: Math.min(90, Math.max(0, n(st.discPct, 0))), costPct: Math.min(90, Math.max(0, n(st.costPct, 0))), mult: Math.max(1, n(st.mult, 2)), maxLotsPer10: Math.min(40, Math.max(0.5, n(st.maxLotsPer10, 4))), maxMonths: n(st.maxMonths, 36) };
     Object.assign(st, cfg);
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     d.calc = cfg; updateDeal(d, { calc: cfg }); render();
