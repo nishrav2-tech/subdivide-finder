@@ -177,11 +177,11 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .row-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .prep{display:flex;flex-direction:column;margin-top:8px}
-.prep-row{display:grid;grid-template-columns:170px 112px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.prep-row{display:grid;grid-template-columns:200px 112px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
 .prep-row:first-child{border-top:0}
 .prep-row .pt{font-weight:600}
 .prep-row .pv{color:var(--ink-2);min-width:0}
-.prep-row.edit{grid-template-columns:170px 1fr}
+.prep-row.edit{grid-template-columns:200px 1fr}
 .prep-row .pe{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .prep-row .pe input{flex:1;min-width:160px}
 .prep-later{margin-top:8px}
@@ -207,6 +207,41 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .chip:hover{border-color:var(--danger)}
 .chip.on{background:var(--danger-soft);border-color:var(--danger);color:var(--danger)}
 .prep-later>summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);padding:4px 0}
+.prep-row .req{color:var(--ink-3);font-weight:400}
+.prep-post>summary{cursor:pointer;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.calc-toggle{margin-top:8px}
+.offer-terms{border-color:var(--accent,#2f6fdf)}
+.terms-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
+.terms-grid .wide{grid-column:span 2}
+.terms-grid input{min-width:0}
+.uw-top{display:grid;grid-template-columns:180px 180px;gap:8px;margin:10px 0 12px}
+.uw-top input{min-width:0}
+.uw-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md)}
+table.t.uw-t{font-size:12px;width:100%;border-collapse:separate;border-spacing:0}
+table.t.uw-t td,table.t.uw-t th{padding:3px 6px;vertical-align:middle;white-space:nowrap;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+table.t.uw-t th{font-size:10.5px;letter-spacing:.02em;padding-top:6px;padding-bottom:6px;background:var(--surface-2)}
+table.t.uw-t .lab{position:sticky;left:0;background:var(--surface);z-index:1;text-align:left;min-width:150px;border-right:1px solid var(--border)}
+table.t.uw-t th.lab{background:var(--surface-2)}
+table.t.uw-t td.in{padding:2px 3px}
+table.t.uw-t td input[type=number]{width:78px;min-width:0;padding:3px 5px;font-size:12px;text-align:right;border-color:transparent;background:var(--accent-soft);border-radius:4px;-moz-appearance:textfield}
+table.t.uw-t td input[type=number]:focus{border-color:var(--accent);background:var(--surface)}
+table.t.uw-t input::-webkit-outer-spin-button,table.t.uw-t input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+table.t.uw-t th input.nm{width:82px;padding:3px 5px;font-size:11px;font-weight:600;text-align:right;text-transform:none}
+table.t.uw-t td input.lab-in{width:124px;padding:2px 4px;font-size:12px;border-color:transparent;background:transparent}
+table.t.uw-t td input.lab-in:focus{border-color:var(--accent)}
+table.t.uw-t tr.sec td{font-size:10.5px;font-weight:700;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;padding-top:10px;background:var(--surface)}
+table.t.uw-t tr.tot td{font-weight:600;border-top:1px solid var(--ink-3)}
+table.t.uw-t tr.strong td{font-weight:700;background:var(--success-soft)}
+table.t.uw-t tr.strong td.lab{background:var(--success-soft)}
+table.t.uw-t tr.muted-row td{color:var(--ink-3)}
+table.t.uw-t tr:last-child td{border-bottom:0}
+table.t.uw-t tr>*:last-child{position:sticky;right:0;z-index:1;background:var(--surface-2);border-left:1px solid var(--border);font-weight:600;min-width:84px}
+table.t.uw-t tr.strong>*:last-child{background:var(--success-soft)}
+table.t.uw-t .neg,.uw-sum .neg{color:var(--danger)}
+.x-mini{background:none;border:0;color:var(--ink-3);cursor:pointer;font-size:14px;line-height:1;padding:2px 3px}
+.x-mini:hover{color:var(--danger)}
+.uw-sum{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:640px){.terms-grid{grid-template-columns:1fr 1fr}.uw-sum{grid-template-columns:1fr 1fr}}
 @media (max-width:640px){.prep-row{grid-template-columns:1fr auto}.prep-row .pv{grid-column:1/-1}.prep-row.edit{grid-template-columns:1fr}}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-radius:var(--r-md);background:var(--warn-soft);color:var(--warn-ink);font-size:13px}
 .convo{display:flex;flex-direction:column;gap:8px;margin:10px 0}
@@ -371,7 +406,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     threads: {}, extras: {}, watching: {}, searchWatch: null, searchKey: null,
     gmail: { lastAt: null, error: null },
     route: { search: null, deal: null, page: "searches" }, showNew: false, settings: {}, settingsErr: null, crm: {}, q: "", all: [], lastDrawer: null,
-    open: {}, local: {}, busy: {}, err: {}, confirm: {}, composeOpen: {}
+    open: {}, local: {}, busy: {}, err: {}, confirm: {}, composeOpen: {}, flash: {}
   };
 
   // ---------- helpers ----------
@@ -1058,20 +1093,21 @@ input[type=file]{font-size:12.5px;max-width:100%}
       return box;
     }
     if (c.id === "underwriting") {
-      var un = prepCount(d, true), hasOffer = rv.offerOpen || rv.offerMax;
+      var un = prepCount(d, true), tm = d.terms || {}, hasOffer = tm.price || rv.offerOpen || rv.offerMax;
       box.appendChild(lbl("Next step: underwriting"));
       box.appendChild(h("ul", { className: "uw-list" },
         h("li", { className: un.known === un.total ? "done" : "", text: "Site facts: " + un.known + " of " + un.total + " known" + (un.issue ? ", " + un.issue + " problem" + (un.issue === 1 ? "" : "s") : "") + " (Claude, below)" }),
         h("li", { className: d.calc ? "done" : "", text: "Exit scenarios run (The numbers, below)" }),
         h("li", { className: rv.resale ? "done" : "", text: "Your resale estimate and lot count (Your review)" }),
-        h("li", { className: hasOffer ? "done" : "", text: hasOffer ? "Offer set: " + [rv.offerOpen ? money(rv.offerOpen) + " opening" : "", rv.offerMax ? money(rv.offerMax) + " max" : ""].filter(Boolean).join(", ") : "Opening and max offer (Your review)" })));
+        h("li", { className: d.uwSheet ? "done" : "", text: "Underwriting sheet: child parcels, dispo prices and costs" }),
+        h("li", { className: hasOffer ? "done" : "", text: hasOffer ? "Offer set: " + money(tm.price || rv.offerOpen) : "Offer price and terms (Offer, at the top)" })));
       box.appendChild(h("div", { className: "row" },
         h("button", { className: "btn primary", type: "button", onclick: function () { moveTo(d, "offerready"); }, text: "Offer ready" }),
         h("button", { className: "btn ghost", type: "button", onclick: function () { moveTo(d, "rejected"); }, text: "Reject" }),
-        hasOffer ? null : h("span", { className: "state", text: "Set your opening and max offer in Your review first." })));
+        hasOffer ? null : h("span", { className: "state", text: "Set the offer price and terms at the top first." })));
       return box;
     }
-    if (c.id === "offerready") return offerBox(d);
+    if (c.id === "offerready") return null; // the agent submits the offer; terms live in the Offer box at the top
     if (c.id === "offer") {
       var of = d.offer || {};
       box.appendChild(lbl("Offer made"));
@@ -1137,37 +1173,30 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
   // ---------- Review prep: the facts Claude gathers before a manual review (deal.prep) ----------
   var PREP_ITEMS = [
-    { k: "parcel", t: "Acreage and parcel", req: true },
+    { k: "parcel", t: "Acreage and parcel number", req: true },
     { k: "frontage", t: "Road frontage", req: true },
-    { k: "access", t: "Legal access" },
-    { k: "water", t: "Water" },
-    { k: "electric", t: "Electric" },
-    { k: "septic", t: "Septic, perc or sewer" },
-    { k: "restrictions", t: "Restrictions and zoning" },
-    { k: "flood", t: "Flood, wetlands and slope" }
+    { k: "access", t: "Legal and physical access" },
+    { k: "water", t: "Water access" },
+    { k: "electric", t: "Electricity" },
+    { k: "septic", t: "Septic access and soil feasibility" },
+    { k: "restrictions", t: "Restrictions" },
+    { k: "flood", t: "Elevation, wetlands and floodplains" },
+    { k: "setbacks", t: "Setback requirements", post: true },
+    { k: "zoning", t: "Zoning requirements", post: true },
+    { k: "easements", t: "Utility easements and lines across the tract", post: true },
+    { k: "valueadd", t: "Value-add work (homesite clearing, gravel drives, road work)", post: true }
   ];
   var PREP_STATES = { ok: { t: "Known", pb: "var(--success-soft)", pc: "var(--success-ink)" }, issue: { t: "Problem", pb: "var(--warn-soft)", pc: "var(--warn-ink)" }, asked: { t: "Asked agent", pb: "var(--info-soft)", pc: "var(--info-ink)" }, missing: { t: "Missing", pb: "var(--surface-2)", pc: "var(--ink-2)" } };
   var UW_COLS = { underwriting: 1, offerready: 1, offer: 1, contract: 1 };
   function prepItem(d, k) { var it = d.prep && d.prep.items && d.prep.items[k]; return it && PREP_STATES[it.s] ? it : { s: "missing" }; }
   function prepCount(d, uw) {
-    var n = { known: 0, issue: 0, total: 0, uw: !!uw };
-    PREP_ITEMS.forEach(function (p) { if (uw ? p.req : !p.req) return; n.total++; var it = prepItem(d, p.k), s = it.s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; if (it.verify && (s === "ok" || s === "issue")) n.verify = (n.verify || 0) + 1; });
+    var n = { known: 0, issue: 0, total: 0, uw: uw === true };
+    PREP_ITEMS.forEach(function (p) { var inc = uw === "post" ? !!p.post : p.post ? false : uw === "all" ? true : uw ? !p.req : !!p.req; if (!inc) return; n.total++; var it = prepItem(d, p.k), s = it.s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; if (it.verify && (s === "ok" || s === "issue")) n.verify = (n.verify || 0) + 1; });
     return n;
   }
-  function prepBox(d) {
-    var n = prepCount(d), p = d.prep || {};
-    var box = h("div", { className: "box" },
-      h("div", { className: "row", style: "justify-content:space-between" },
-        h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" + (n.issue ? " · " + n.issue + " problem" + (n.issue === 1 ? "" : "s") : "") }),
-        h("span", { className: "small muted", text: p.updatedAt ? "Claude updated " + fmtDT(p.updatedAt) : "Claude fills these in on each check" })));
-    var list = h("div", { className: "prep" }), laterKey = "later-" + d.id;
-    var inUw = UW_COLS[colFor(d)], un = prepCount(d, true);
-    if (inUw && S.open[laterKey] == null) S.open[laterKey] = true;
-    var later = h("details", { className: "prep-later", id: laterKey, open: !!S.open[laterKey], ontoggle: function () { S.open[laterKey] = later.open; } },
-      h("summary", { text: inUw ? "Underwriting facts · " + un.known + " of " + un.total + " known (Claude gathers these once you approve for underwriting)" : "Underwriting facts: utilities and site facts (gathered after you approve for underwriting)" }));
-    var laterList = h("div", { className: "prep" }); later.appendChild(laterList);
-    PREP_ITEMS.forEach(function (pi) {
-      var list0 = list; if (!pi.req) list = laterList;
+  function prepRows(d, items) {
+    var list = h("div", { className: "prep" });
+    items.forEach(function (pi) {
       var it = prepItem(d, pi.k), st = PREP_STATES[it.s], ek = "prep-" + d.id + "-" + pi.k;
       if (S.local[ek]) {
         var ed = S.local[ek];
@@ -1179,20 +1208,35 @@ input[type=file]{font-size:12.5px;max-width:100%}
             h("button", { className: "btn sm primary", type: "button", onclick: function () { savePrep(d, pi.k, ed, ek); }, text: S.busy[ek] ? "Saving…" : "Save" }),
             h("button", { className: "btn sm ghost", type: "button", onclick: function () { delete S.local[ek]; render(); }, text: "Cancel" }),
             S.err[ek] ? h("span", { className: "state err", text: S.err[ek] }) : null)));
-        list = list0;
         return;
       }
       list.appendChild(h("div", { className: "prep-row" },
-        h("span", { className: "pt", text: pi.t }),
+        h("span", { className: "pt" }, pi.t, pi.req ? h("span", { className: "req", title: "Needed before review", text: " *" }) : null),
         h("span", null, pill(st.t, st.pb, st.pc, true), it.verify ? pill("Verify", "var(--warn-soft)", "var(--warn-ink)") : null),
         h("span", { className: "pv" }, h("span", { text: it.v || "" }), it.src ? h("span", { className: "muted small", text: " · " + it.src }) : null),
         h("button", { className: "btn sm ghost", type: "button", "aria-label": "Edit " + pi.t, onclick: function () { S.local[ek] = { s: it.s === "asked" ? "missing" : it.s, v: it.v || "" }; render(); }, text: "Edit" })));
-      list = list0;
     });
-    box.appendChild(list);
-    box.appendChild(later);
+    return list;
+  }
+  function prepBox(d) {
+    var n = prepCount(d, "all"), p = d.prep || {};
+    var box = h("div", { className: "box" },
+      h("div", { className: "row", style: "justify-content:space-between" },
+        h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" + (n.issue ? " · " + n.issue + " problem" + (n.issue === 1 ? "" : "s") : "") }),
+        h("span", { className: "small muted", text: p.updatedAt ? "Claude updated " + fmtDT(p.updatedAt) : "Claude fills these in on each check" })));
+    box.appendChild(prepRows(d, PREP_ITEMS.filter(function (pi) { return !pi.post; })));
+    box.appendChild(h("p", { className: "small muted", style: "margin:6px 0 0", text: "* Needed before review. Claude gathers the rest once you approve for underwriting." }));
     if (p.summary) box.appendChild(h("div", { className: "note", style: "margin-top:10px", text: p.summary }));
     return box;
+  }
+  function postOfferBox(d) {
+    var n = prepCount(d, "post"), k = "post-" + d.id, c = colFor(d);
+    if (S.open[k] == null && (c === "offer" || c === "contract")) S.open[k] = true;
+    var det = h("details", { className: "box prep-post", id: k, open: !!S.open[k], ontoggle: function () { S.open[k] = det.open; } },
+      h("summary", null, h("span", { className: "lbl", style: "margin:0", text: "After the offer · " + n.known + " of " + n.total + " known" }),
+        h("span", { className: "small muted", text: " Not needed to make an offer" })));
+    det.appendChild(prepRows(d, PREP_ITEMS.filter(function (pi) { return pi.post; })));
+    return det;
   }
   function savePrep(d, k, ed, ek) {
     if (!S.db) return;
@@ -1375,10 +1419,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var stageRow = h("div", { className: "f stage-row" }, h("label", { "for": "move-" + d.id, text: "Stage" }), moveSel,
       S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null);
     if (d._orphan) body.appendChild(h("div", { className: "box" }, stageRow));
+    if (!d._orphan) body.appendChild(offerTermsBox(d, c));
     if (!d._orphan) { var sa = stageActions(d, c); if (sa) body.appendChild(sa); }
     if (!d._orphan) body.appendChild(prepBox(d));
+    if (!d._orphan) body.appendChild(postOfferBox(d));
+    if (!d._orphan) body.appendChild(uwSheetBox(d, r));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d, stageRow)));
-    if (d.notes) body.appendChild(h("div", { className: "note" }, h("b", { text: "From the listing and agent emails: " }), d.notes));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "The numbers" }), h("div", { className: "figs" },
       fig("2x offer range", d.offerHigh ? money(d.offerLow) + " to " + money(d.offerHigh) : ""),
       fig("Asking vs 2x high", pct(d.askVsHigh)),
@@ -1396,10 +1442,11 @@ input[type=file]{font-size:12.5px;max-width:100%}
       fig("Days on market", d.days != null ? d.days : ""),
       fig("Deal class", d.dealClass || ""))));
     if (!d._orphan) body.appendChild(exitCalcBox(d, r));
-    if (d.agent) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "Listing agent" }),
-      h("div", { text: [d.agent.name, d.agent.brokerage].filter(Boolean).join(", ") || "Unknown" }),
-      h("div", { className: "small muted", text: [d.agent.phone, d.agent.email].filter(Boolean).join(" · ") })));
     if (!d._orphan) body.appendChild(filesBox(d));
+    if (d.agent || d.notes) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "Listing agent" }),
+      d.agent ? h("div", { text: [d.agent.name, d.agent.brokerage].filter(Boolean).join(", ") || "Unknown" }) : null,
+      d.agent ? h("div", { className: "small muted", text: [d.agent.phone, d.agent.email].filter(Boolean).join(" · ") }) : null,
+      d.notes ? h("div", { className: "note", style: "margin:10px 0 0" }, h("b", { text: "Summary from the listing and agent emails: " }), d.notes) : null));
     threads.forEach(function (o) { body.appendChild(threadBox(o, d)); });
     if (!d._orphan) {
       if (!threads.length || S.composeOpen[d.id] || S.ideas["new-" + d.id]) body.appendChild(h("div", { className: "box" }, emailPanel("first", "new-" + d.id, null, d)));
@@ -1644,9 +1691,15 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function exitCalcBox(d, r) {
     var fips = dealFips(d), key = "calc-" + d.id;
     var st = S.local[key] || (S.local[key] = calcCfg(d, r));
+    var xk = "calcx-" + d.id, ex = !!S.open[xk];
+    var toggle = function () { S.open[xk] = !ex; render(); };
     var box = h("div", { className: "box" }, h("div", { className: "row", style: "justify-content:space-between" },
       h("span", { className: "lbl", style: "margin:0", text: "Exit scenarios · CRM subdivide calculator" }),
-      h("span", { className: "small muted", text: fips && S.mk[fips] && S.mk[fips].ppa_at ? d.county + " Co. lot sales, pulled " + fmtDT(S.mk[fips].ppa_at) : "" })));
+      h("span", { className: "row", style: "gap:8px" },
+        h("span", { className: "small muted", text: ex && fips && S.mk[fips] && S.mk[fips].ppa_at ? d.county + " Co. lot sales, pulled " + fmtDT(S.mk[fips].ppa_at) : "" }),
+        h("button", { className: "btn sm ghost", type: "button", id: xk + "-btn", "aria-expanded": ex ? "true" : "false", onclick: toggle, text: ex ? "Hide calculator" : "Open calculator" }))));
+    var calcIn = box;
+    if (!ex) box = h("div");
     var num = function (k, label, attrs) {
       return h("label", { className: "f" }, label, h("input", Object.assign({ type: "number", id: key + "-" + k, value: st[k] === "" ? "" : String(st[k]),
         oninput: function (e) { st[k] = e.target.value; },
@@ -1660,6 +1713,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       num("mult", "Target multiple", { step: "0.1", min: "1" }),
       num("maxLotsPer10", "Max lots / 10 ac", { step: "0.5", min: "0.5", max: "40", title: "Most lots allowed per 10 acres; scales with the tract size" }),
       h("button", { className: "btn primary", type: "button", onclick: function () { runCalc(d, st, key); }, text: "Calculate" })));
+    if (!ex) box = calcIn;
     if (!fips) { box.appendChild(h("p", { className: "small muted", text: "Couldn't match " + (d.county || "this county") + " to the CRM's county list." })); return box; }
     loadMk(fips);
     var row = S.mk[fips];
@@ -1670,6 +1724,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (!res.rows.length && !res.wholeRow) { box.appendChild(h("p", { className: "small muted", text: "No split options for " + res.A + " acres at " + st.maxLotsPer10 + " lots per 10 acres." })); return box; }
     var best = res.best;
     var bestTxt = best.kind === "whole" ? "sell whole" : best.N + " lots of " + best.L.toFixed(1) + " ac";
+    var full = box; if (!ex) box = h("div");
     box.appendChild(h("div", { className: "note" + (res.ask && !res.reached ? " neg" : ""), style: "margin:10px 0 0",
       text: !res.ask ? "No price entered: showing the split with the highest offer at " + res.mult + "x." :
         res.reached ? "Fewest lots that reach " + res.mult + "x at " + money(res.ask) + ": " + bestTxt + " (cap " + res.nMax + " lots at " + res.per10 + " per 10 ac)." :
@@ -1684,11 +1739,14 @@ input[type=file]{font-size:12.5px;max-width:100%}
     sum.appendChild(h("div", null, h("span", { text: "Net resale, " + (best.kind === "whole" ? "sold whole" : best.N + " lots") }), h("b", { text: money(best.netLow) + " to " + money(best.netHigh) }), h("small", { text: best.sell && best.sell.lo != null ? sellTxt(best.sell) + " to sell out" : "" })));
     sum.appendChild(h("div", null, h("span", { text: "Tract sold whole today" }), h("b", { text: res.wholeVal != null ? "about " + money(res.wholeVal) : "—" }), h("small", { text: res.whole.n ? kM(res.whole.med) + "/ac median" : "No sales" })));
     box.appendChild(sum);
+    box = full;
     var tb = h("tbody");
     // Show the lot counts around the pick (fewest first), at most 12 rows, plus selling whole.
     var bi = res.rows.indexOf(best), end = Math.min(res.rows.length, Math.max(bi, 0) + 4), start = Math.max(0, end - 12);
     var all = res.rows.slice(start, end); if (res.wholeRow) all.push(res.wholeRow);
-    all.forEach(function (x) {
+    var shown = all;
+    if (!ex) { var pi0 = all.indexOf(best); if (pi0 < 0) pi0 = 0; var s0 = Math.min(pi0, Math.max(0, all.length - 2)); shown = all.slice(s0, s0 + 2); }
+    shown.forEach(function (x) {
       var flags = [];
       if (x.capped) flags.push(x.offerLow > res.wholeVal ? "above market value" : "top end above market");
       if (x.d.n < MK_CALC_MIN_N) flags.push("thin data");
@@ -1710,6 +1768,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("thead", null, h("tr", null, h("th", { text: "Exit (" + res.A + " ac)" }), h("th", { className: "r", text: "Lot $/ac" }), h("th", { className: "r", text: "Net resale" }),
         h("th", { className: "r", text: "Offer at " + res.mult + "x" }), h("th", { className: "r", text: "Profit" }), h("th"))),
       tb)));
+    if (!ex) {
+      if (all.length > shown.length) box.appendChild(h("button", { className: "btn sm ghost calc-toggle", type: "button", onclick: toggle, text: "Show all " + all.length + " exits, inputs and totals" }));
+      return box;
+    }
     if (res.rows.length > all.length - (res.wholeRow ? 1 : 0)) box.appendChild(h("p", { className: "small muted", text: "Showing " + all.filter(function (x) { return x.kind !== "whole"; }).map(function (x) { return x.N; }).join(", ") + " lots of the 2 to " + res.nMax + " allowed." }));
     box.appendChild(h("p", { className: "small muted", text: "Same math as the CRM Markets calculator: county lot sales over the last 12 months near each lot size (widened until there are 8 sales), less your discount and costs. Offer low uses 25th-percentile prices, high uses the median. The pick is the fewest lots that reach your target multiple at the price, up to your max lots per 10 acres. Use copies that offer range into Your review." }));
     return box;
@@ -1737,6 +1799,163 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { k: "notes", label: "Other notes", rows: 3, ph: "Site visit, calls, anything else" }
   ];
   var KILLER_TAGS = ["Too steep", "False/no frontage", "No homesites", "Flood zone/wetland"];
+  // ---------- Offer terms (deal.terms): what the agent submits for us. Jay's and the underwriter's; Claude never writes it ----------
+  var TERM_FIELDS = [
+    { k: "price", t: "Offer price ($)", type: "number", step: "1000" },
+    { k: "closeDays", t: "Close in (days)", type: "number", step: "1" },
+    { k: "emd", t: "Earnest money ($)", type: "number", step: "500" },
+    { k: "ddDays", t: "Due diligence (days)", type: "number", step: "1" },
+    { k: "extensions", t: "Extensions needed", type: "text", ph: "e.g. one 30-day extension for survey and split approval" },
+    { k: "conditions", t: "Conditions", type: "text", ph: "e.g. subject to survey, perc on each lot, clear title, county split approval" },
+    { k: "notes", t: "Other terms", type: "text", ph: "e.g. seller pays deed prep; title company of buyer's choice" }
+  ];
+  function termsText(d, t) {
+    var L = [d.address, "Offer: " + (money(t.price) || "(price)")];
+    if (t.closeDays) L.push("Close in " + t.closeDays + " days");
+    if (t.emd) L.push("Earnest money " + money(t.emd));
+    if (t.ddDays) L.push(t.ddDays + "-day due diligence");
+    if (t.extensions) L.push("Extensions: " + t.extensions);
+    if (t.conditions) L.push("Conditions: " + t.conditions);
+    if (t.notes) L.push(t.notes);
+    return L.join("\n");
+  }
+  function offerTermsBox(d, c) {
+    var key = "terms-" + d.id, saved = d.terms || {}, rv = d.review || {};
+    var st = S.local[key] || (S.local[key] = Object.assign({ price: saved.price != null ? saved.price : (rv.offerOpen || "") }, saved));
+    var box = h("div", { className: "box offer-terms", id: key },
+      h("div", { className: "row", style: "justify-content:space-between" },
+        h("span", { className: "lbl", style: "margin:0", text: "Offer" + (d.offer && d.offer.status ? " · " + d.offer.status + (d.offer.date ? " " + fmtDay(d.offer.date) : "") : "") }),
+        h("span", { className: "small muted", text: saved.updatedAt ? "Saved " + fmtDT(saved.updatedAt) + (saved.by ? " by " + saved.by : "") : "Your agent submits the offer with these terms" })));
+    var grid = h("div", { className: "terms-grid" });
+    TERM_FIELDS.forEach(function (f) {
+      grid.appendChild(h("label", { className: "f" + (f.type === "text" ? " wide" : "") }, f.t,
+        h("input", { type: f.type, id: key + "-" + f.k, step: f.step || null, min: f.type === "number" ? "0" : null, placeholder: f.ph || "", value: st[f.k] == null ? "" : String(st[f.k]),
+          oninput: function (e) { st[f.k] = e.target.value; } })));
+    });
+    box.appendChild(grid);
+    var save = function (extra) {
+      var t = { updatedAt: new Date().toISOString(), by: S.me || "" };
+      TERM_FIELDS.forEach(function (f) { var v = st[f.k]; if (v === "" || v == null) return; t[f.k] = f.type === "number" ? +v : String(v).trim(); });
+      d.terms = t; S.local[key] = Object.assign({}, t);
+      if (extra) moveTo(d, extra.col, extra.patch ? Object.assign({ terms: t }, extra.patch) : { terms: t });
+      else { updateDeal(d, { terms: t }); S.flash[key] = "Saved"; render(); }
+    };
+    var copy = function () {
+      var txt = termsText(d, st);
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(function () { S.flash[key] = "Copied for your agent"; render(); }, function () { S.flash[key] = "Couldn't copy"; render(); });
+    };
+    box.appendChild(h("div", { className: "row", style: "margin-top:10px" },
+      h("button", { className: "btn primary", type: "button", onclick: function () { save(); }, text: "Save offer" }),
+      h("button", { className: "btn", type: "button", onclick: copy, text: "Copy terms for agent" }),
+      c.id === "offerready" ? h("button", { className: "btn", type: "button", onclick: function () {
+        var amt = Math.round(parseFloat(st.price));
+        save({ col: "offer", patch: { offer: { amount: amt > 0 ? amt : null, terms: termsText(d, st).split("\n").slice(2).join("; "), date: todayCT(), status: "Submitted", via: "agent" } } });
+      }, text: "Agent submitted it" }) : null,
+      S.flash[key] ? h("span", { className: "state", text: S.flash[key] }) : null));
+    return box;
+  }
+
+  // ---------- Underwriting sheet (deal.uwSheet): a land pro forma by child parcel (line items down, parcels across). The underwriter's; Claude never writes it ----------
+  function uwNum(v) { var x = parseFloat(String(v == null ? "" : v).replace(/[$,%\s]/g, "")); return isFinite(x) ? x : 0; }
+  function uwId() { return Math.random().toString(36).slice(2, 8); }
+  function uwDefault(d, r) {
+    var rv = d.review || {}, n = Math.max(1, Math.round(rv.lots || d.splitLots || 1)), A = +d.acres || 0;
+    var parcels = [];
+    for (var i = 0; i < n; i++) parcels.push({ id: uwId(), name: "Parcel " + (i + 1), acres: A ? +(A / n).toFixed(2) : "", dispo: "", acq: "", close: "" });
+    var items = ["Clearing homesites", "Gravel driveways", "Road improvements", "Survey and split"].map(function (t) { return { id: uwId(), label: t, v: {} }; });
+    return { price: (d.terms && d.terms.price) || rv.offerOpen || d.asking || "", sellPct: 8, parcels: parcels, items: items };
+  }
+  function uwCalc(sh) {
+    var P = uwNum(sh.price), A = 0, sp = uwNum(sh.sellPct) / 100;
+    sh.parcels.forEach(function (p) { A += uwNum(p.acres); });
+    var col = sh.parcels.map(function (p) {
+      var a = uwNum(p.acres), auto = p.acq === "" || p.acq == null;
+      var acq = auto ? (A ? P * a / A : P / (sh.parcels.length || 1)) : uwNum(p.acq);
+      var dispo = uwNum(p.dispo), sell = dispo * sp, net = dispo - sell, close = uwNum(p.close);
+      var imp = {}, impT = 0; sh.items.forEach(function (it) { var v = uwNum(it.v[p.id]); imp[it.id] = v; impT += v; });
+      var cost = acq + close + impT;
+      return { a: a, acq: acq, auto: auto, dispo: dispo, sell: sell, net: net, close: close, imp: imp, impT: impT, cost: cost, profit: net - cost };
+    });
+    var T = { a: 0, acq: 0, dispo: 0, sell: 0, net: 0, close: 0, imp: {}, impT: 0, cost: 0, profit: 0 };
+    col.forEach(function (c) { ["a", "acq", "dispo", "sell", "net", "close", "impT", "cost", "profit"].forEach(function (k) { T[k] += c[k]; }); sh.items.forEach(function (it) { T.imp[it.id] = (T.imp[it.id] || 0) + c.imp[it.id]; }); });
+    return { col: col, T: T };
+  }
+  function uwSheetBox(d, r) {
+    var key = "uw-" + d.id;
+    var sh = S.local[key] || (S.local[key] = JSON.parse(JSON.stringify(d.uwSheet && d.uwSheet.items ? d.uwSheet : uwDefault(d, r))));
+    var box = h("div", { className: "box uw-sheet", id: key });
+    var outs = {}, savedEl = null;
+    var save = function () {
+      var x = JSON.parse(JSON.stringify(sh)); x.updatedAt = new Date().toISOString(); x.by = S.me || "";
+      d.uwSheet = x; updateDeal(d, { uwSheet: x }); if (savedEl) savedEl.textContent = "Saved " + fmtDT(x.updatedAt);
+    };
+    var later = function () { clearTimeout(S.uwTimer); if (savedEl) savedEl.textContent = "Saving…"; S.uwTimer = setTimeout(save, 900); };
+    var o = function (id) { var el = h("td", { className: "r" }); outs[id] = el; return el; };
+    var inp = function (obj, k, attrs) {
+      var el = h("input", Object.assign({ type: "number", value: obj[k] == null ? "" : String(obj[k]), oninput: function (e) { obj[k] = e.target.value; refresh(); later(); } }, attrs || {}));
+      return el;
+    };
+    var cell = function (obj, k, attrs) { return h("td", { className: "r in" }, inp(obj, k, attrs)); };
+    var paren = function (n) { return n ? "(" + money(Math.abs(n)).slice(1) + ")" : "–"; };
+    var amt = function (n) { return n ? money(n).replace("$-", "-$") : "–"; };
+    var set = function (id, txt, neg) { var el = outs[id]; if (!el) return; el.textContent = txt; el.classList.toggle("neg", !!neg); };
+    var refresh = function () {
+      var c = uwCalc(sh), T = c.T, ids = sh.parcels.map(function (p) { return p.id; }).concat(["T"]);
+      ids.forEach(function (id, j) {
+        var x = id === "T" ? T : c.col[j];
+        if (id === "T") { set("acres-T", T.a ? +T.a.toFixed(2) + "" : "–"); set("dispo-T", amt(T.dispo)); set("acq-T", paren(T.acq)); set("close-T", paren(T.close)); sh.items.forEach(function (it) { set("imp-" + it.id + "-T", paren(T.imp[it.id])); }); }
+        else { var ai = document.getElementById(key + "-acq-" + id); if (ai) ai.placeholder = money(x.acq); }
+        set("sell-" + id, paren(x.sell)); set("net-" + id, amt(x.net)); set("impT-" + id, paren(x.impT));
+        set("cost-" + id, paren(x.cost)); set("profit-" + id, amt(x.profit), x.profit < 0);
+        set("margin-" + id, x.dispo ? Math.round(x.profit / x.dispo * 100) + "%" : "–", x.profit < 0);
+      });
+    };
+    // ---- header + assumptions
+    box.appendChild(h("div", { className: "row", style: "justify-content:space-between" },
+      h("span", { className: "lbl", style: "margin:0", text: "Underwriting" }),
+      (savedEl = h("span", { className: "small muted", text: d.uwSheet && d.uwSheet.updatedAt ? "Saved " + fmtDT(d.uwSheet.updatedAt) + (d.uwSheet.by ? " by " + d.uwSheet.by : "") : "Saves as you type" }))));
+    box.appendChild(h("div", { className: "uw-top" },
+      h("label", { className: "f" }, "Purchase price ($)", inp(sh, "price", { id: key + "-price", step: "1000", min: "0" })),
+      h("label", { className: "f" }, "Selling costs (% of sale)", inp(sh, "sellPct", { step: "0.5", min: "0", title: "Commissions and seller closing costs on each lot sale" }))));
+    // ---- pro forma: line items down, child parcels across
+    var hd = h("tr", null, h("th", { className: "lab" }));
+    sh.parcels.forEach(function (p, i) {
+      hd.appendChild(h("th", { className: "r pc" }, h("input", { type: "text", className: "nm", "aria-label": "Child parcel name", value: p.name, oninput: function (e) { p.name = e.target.value; later(); } }),
+        sh.parcels.length > 1 ? h("button", { className: "x-mini", type: "button", title: "Remove this parcel", "aria-label": "Remove " + (p.name || "parcel"), onclick: function () { sh.parcels.splice(i, 1); sh.items.forEach(function (it) { delete it.v[p.id]; }); save(); render(); }, text: "×" }) : null));
+    });
+    hd.appendChild(h("th", { className: "r", text: "Total" }));
+    var tb = h("tbody");
+    var sec = function (t) { var tr = h("tr", { className: "sec" }, h("td", { className: "lab", text: t })); sh.parcels.forEach(function () { tr.appendChild(h("td")); }); tr.appendChild(h("td")); tb.appendChild(tr); };
+    var inRow = function (lab, k, attrs, totId, cls) { var tr = h("tr", { className: cls || "" }, h("td", { className: "lab", text: lab })); sh.parcels.forEach(function (p) { tr.appendChild(cell(p, k, Object.assign({ "aria-label": lab + ", " + p.name }, attrs || {}, k === "acq" ? { id: key + "-acq-" + p.id } : {}))); }); tr.appendChild(totId ? o(totId) : h("td")); tb.appendChild(tr); };
+    var outRow = function (lab, k, cls) { var tr = h("tr", { className: cls || "" }, h("td", { className: "lab", text: lab })); sh.parcels.forEach(function (p) { tr.appendChild(o(k + "-" + p.id)); }); tr.appendChild(o(k + "-T")); tb.appendChild(tr); };
+    inRow("Acres", "acres", { step: "0.01", min: "0" }, "acres-T");
+    sec("Revenue");
+    inRow("Dispo price", "dispo", { step: "1000", min: "0" }, "dispo-T");
+    outRow("Less selling costs", "sell");
+    outRow("Net sale proceeds", "net", "tot");
+    sec("Acquisition");
+    inRow("Purchase price (by acres)", "acq", { step: "1000", min: "0" }, "acq-T");
+    inRow("Closing costs", "close", { step: "100", min: "0" }, "close-T");
+    sec("Improvements");
+    sh.items.forEach(function (it, ii) {
+      var tr = h("tr", null, h("td", { className: "lab" }, h("input", { type: "text", className: "lab-in", "aria-label": "Line item name", value: it.label, oninput: function (e) { it.label = e.target.value; later(); } }),
+        h("button", { className: "x-mini", type: "button", title: "Remove this line", "aria-label": "Remove " + it.label, onclick: function () { sh.items.splice(ii, 1); save(); render(); }, text: "×" })));
+      sh.parcels.forEach(function (p) { tr.appendChild(cell(it.v, p.id, { step: "100", min: "0", "aria-label": it.label + ", " + p.name })); });
+      tr.appendChild(o("imp-" + it.id + "-T")); tb.appendChild(tr);
+    });
+    var addTr = h("tr", null, h("td", { className: "lab" }, h("button", { className: "btn sm ghost", type: "button", onclick: function () { sh.items.push({ id: uwId(), label: "New line item", v: {} }); save(); render(); }, text: "+ Add line item" })));
+    sh.parcels.forEach(function () { addTr.appendChild(h("td")); }); addTr.appendChild(h("td")); tb.appendChild(addTr);
+    outRow("Total improvements", "impT", "sub");
+    outRow("Total cost", "cost", "tot");
+    outRow("Net profit", "profit", "tot strong");
+    outRow("Margin", "margin");
+    box.appendChild(h("div", { className: "uw-wrap" }, h("table", { className: "t uw-t" }, h("thead", null, hd), tb)));
+    box.appendChild(h("div", { className: "row", style: "margin-top:6px" },
+      h("button", { className: "btn sm ghost", type: "button", onclick: function () { var A = uwNum(d.acres) - sh.parcels.reduce(function (s, p) { return s + uwNum(p.acres); }, 0); sh.parcels.push({ id: uwId(), name: "Parcel " + (sh.parcels.length + 1), acres: A > 0 ? +A.toFixed(2) : "", dispo: "", acq: "", close: "" }); save(); render(); }, text: "+ Add child parcel" })));
+    setTimeout(refresh, 0);
+    return box;
+  }
+
   function reviewEditor(d, stageRow) {
     var key = "review-" + d.id, rv = d.review || {};
     var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", offerOpen: rv.offerOpen != null ? String(rv.offerOpen) : "", offerMax: rv.offerMax != null ? String(rv.offerMax) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", killerTags: (rv.killerTags || []).slice(), notes: rv.notes || "" });
