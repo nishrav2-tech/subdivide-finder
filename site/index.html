@@ -216,6 +216,14 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .msg.sys{background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
 .msg-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .msg-head b{color:var(--ink)}
+.msg.in.unread{border-color:var(--danger);box-shadow:inset 3px 0 0 var(--danger)}
+.readbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
+.newtag{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:600;margin-left:6px}
+.inbox-btn{position:relative;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);color:var(--ink-2);font-size:12.5px;cursor:pointer}
+.inbox-btn.has{border-color:var(--danger);color:var(--danger);font-weight:600}
+.inbox-panel .irow{display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:10px 0;border-top:1px solid var(--border)}
+.inbox-panel .irow:first-of-type{border-top:0}
+.inbox-panel .snip{font-size:12.5px;color:var(--ink-2);grid-column:1/-1;white-space:pre-wrap;overflow-wrap:anywhere;max-height:4.5em;overflow:hidden}
 .msg .body{white-space:pre-wrap;font-size:13px;margin-top:6px;overflow-wrap:anywhere}
 .quoted summary{cursor:pointer;font-size:12px;color:var(--ink-3);margin-top:6px}
 .links{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;align-items:center}
@@ -296,7 +304,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
 <header class="topbar">
   <a class="brand" href="#/" aria-label="Subdivide Finder home"><img src="logo.png" alt="Utopian Capital"><span class="sep"></span><span class="name">Subdivide Finder</span></a>
   <nav class="tabs" id="tabs" aria-label="Sections"><a href="#/" id="tab-searches">Searches</a><a href="#/criteria" id="tab-criteria">Criteria</a></nav>
-  <div class="top-right"><span id="fresh"></span><span id="sf-who"></span><a href="#" id="sf-signout">Sign out</a></div>
+  <div class="top-right"><button type="button" class="inbox-btn" id="inbox-btn" hidden aria-label="Agent emails to read"></button><span id="fresh"></span><span id="sf-who"></span><a href="#" id="sf-signout">Sign out</a></div>
 </header>
 <main class="page" id="view"></main>
 <div id="drawer-slot"></div>
@@ -418,6 +426,49 @@ input[type=file]{font-size:12.5px;max-width:100%}
     return list;
   }
   function inboundOf(o) { return convoFor(o).filter(function (m) { return !isMe(m.from) && !isBounce(m.from); }); }
+  // ---------- read receipts: every agent email stays "unread" until Jay clicks Mark read (stored on sf_outreach doc.reads) ----------
+  function readOf(o, m) { return (o.reads || {})[m.id] || null; }
+  function unreadList() {
+    var out = [];
+    S.outreach.forEach(function (o) { inboundOf(o).forEach(function (m) { if (!readOf(o, m)) out.push({ o: o, m: m }); }); });
+    return out.sort(function (a, b) { return (b.m.t || 0) - (a.m.t || 0); });
+  }
+  function unreadForDeal(d) { var n = 0; outreachForDeal(d).forEach(function (o) { inboundOf(o).forEach(function (m) { if (!readOf(o, m)) n++; }); }); return n; }
+  function markRead(o, ids) {
+    if (!S.db || !ids.length) return;
+    var at = new Date().toISOString(), by = S.me || ME, reads = Object.assign({}, o.reads || {});
+    ids.forEach(function (id) { if (!reads[id]) reads[id] = { at: at, by: by }; });
+    o.reads = reads; render();
+    S.db.doc("outreach/" + o.id).update({ reads: reads }).catch(function (e) { S.err["read-" + o.id] = "Couldn't save read status (" + ((e && e.code) || "error") + ")."; render(); });
+  }
+  function markAllRead() {
+    var by = {}; unreadList().forEach(function (x) { (by[x.o.id] = by[x.o.id] || { o: x.o, ids: [] }).ids.push(x.m.id); });
+    Object.keys(by).forEach(function (k) { markRead(by[k].o, by[k].ids); });
+  }
+  function dealForOutreach(o) { return (o.dealId && dealById(o.dealId)) || null; }
+  function openUnread(x) {
+    var d = dealForOutreach(x.o); S.showInbox = false;
+    if (d && d.runId) { S.open["unread-jump"] = x.m.id; go(d.runId, d.id); } else render();
+  }
+  function inboxPanel() {
+    var list = unreadList();
+    var p = h("div", { className: "panel inbox-panel", style: "margin-bottom:18px" },
+      h("div", { className: "row", style: "justify-content:space-between;margin-bottom:6px" },
+        h("b", { text: list.length ? list.length + (list.length === 1 ? " agent email to read" : " agent emails to read") : "All agent emails read" }),
+        h("span", { className: "row", style: "gap:6px" },
+          list.length > 1 ? h("button", { className: "btn sm ghost", type: "button", onclick: markAllRead, text: "Mark all read" }) : null,
+          h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.showInbox = false; render(); }, text: "Close" }))));
+    list.forEach(function (x) {
+      var d = dealForOutreach(x.o);
+      p.appendChild(h("div", { className: "irow" },
+        h("div", null, h("b", { text: (d && d.address) || x.o.property || x.o.subject || "Email" }), h("div", { className: "small muted", text: nameOf(x.m.from) + " · " + fmtDT(x.m.date) + ((x.m.attachments && x.m.attachments.length) ? " · " + x.m.attachments.length + " attachment" + (x.m.attachments.length === 1 ? "" : "s") : "") })),
+        h("span", { className: "row", style: "gap:6px;align-items:flex-start" },
+          d ? h("button", { className: "btn sm", type: "button", onclick: function () { openUnread(x); }, text: "Open" }) : null,
+          h("button", { className: "btn sm primary", type: "button", onclick: function () { markRead(x.o, [x.m.id]); }, text: "Mark read" })),
+        h("div", { className: "snip", text: splitQuoted(x.m.body)[0] || "" })));
+    });
+    return p;
+  }
   function bucketFor(o) {
     var idea = S.ideas[o.threadId] || {};
     var msgs = convoFor(o);
@@ -562,6 +613,15 @@ input[type=file]{font-size:12.5px;max-width:100%}
 
     var synced = S.outreach.reduce(function (m, o) { var t = Date.parse(o.syncedAt) || 0; return t > m ? t : m; }, 0);
     var fr = document.getElementById("fresh"); fr.textContent = synced ? "Gmail last checked " + ago(synced) : "";
+    var ib = document.getElementById("inbox-btn"), nUnread = S.dbState === "ready" ? unreadList().length : 0;
+    if (ib) {
+      ib.hidden = S.dbState !== "ready";
+      ib.className = "inbox-btn" + (nUnread ? " has" : "");
+      ib.textContent = nUnread ? "\u2709 " + nUnread + " unread" : "\u2709 All read";
+      ib.onclick = function () { S.showInbox = !S.showInbox; render(); };
+      ib.setAttribute("aria-expanded", String(!!S.showInbox));
+    }
+    document.title = (nUnread ? "(" + nUnread + ") " : "") + "Subdivide Finder";
     var tc = document.getElementById("tab-criteria"), ts = document.getElementById("tab-searches");
     if (tc) { if (S.route.page === "criteria") { tc.setAttribute("aria-current", "page"); ts.removeAttribute("aria-current"); } else { ts.setAttribute("aria-current", "page"); tc.removeAttribute("aria-current"); } }
     var view = document.getElementById("view"); view.textContent = "";
@@ -571,6 +631,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (S.dbState === "error") { view.appendChild(h("div", { className: "empty", text: "Couldn't load your data (" + (S.dbError || "unknown error") + "). Reload the page to try again." })); return; }
     if (S.dbState === "loading") { view.appendChild(h("div", { className: "empty", text: "Loading…" })); return; }
     add(view, bannerContent());
+    if (S.showInbox) view.appendChild(inboxPanel());
     var r = S.route.search ? runById(S.route.search) : null;
     view.appendChild(S.route.page === "criteria" ? criteriaView() : (r ? searchView(r) : searchesView()));
 
@@ -588,6 +649,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       setTimeout(function () { var x = document.getElementById("drawer-close"); if (x && !focusId) x.focus(); }, 0);
     } else { slot.textContent = ""; S.lastDrawer = null; }
     var nb = document.getElementById("board"); if (nb) nb.scrollLeft = bdLeft;
+    if (S.open["unread-jump"]) { var jm = document.getElementById("msg-" + S.open["unread-jump"]); if (jm) { delete S.open["unread-jump"]; setTimeout(function () { jm.scrollIntoView({ block: "center" }); }, 50); } }
     if (focusId) { var el = document.getElementById(focusId); if (el) { el.focus({ preventScroll: true }); if (selS != null && el.setSelectionRange) { try { el.setSelectionRange(selS, selE); } catch (e) {} } } }
   }
 
@@ -953,7 +1015,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
       (pc || (d.files && d.files.length)) ? h("span", { className: "m", text: [pc ? "Review facts " + pc.known + "/" + pc.total : "", (d.files && d.files.length) ? d.files.length + (d.files.length === 1 ? " file" : " files") : ""].filter(Boolean).join(" · ") }) : null,
-      (flag || killer || (pc && pc.issue) || c.id === "contact") ? h("span", { className: "tags" },
+      (unreadForDeal(d) || flag || killer || (pc && pc.issue) || c.id === "contact") ? h("span", { className: "tags" },
+        unreadForDeal(d) ? pill(unreadForDeal(d) + " unread email" + (unreadForDeal(d) === 1 ? "" : "s"), "var(--danger-soft)", "var(--danger)", true) : null,
         pc && pc.issue ? pill(pc.issue + (pc.issue === 1 ? " problem found" : " problems found"), "var(--warn-soft)", "var(--warn-ink)", true) : null,
         flag ? pill(flag.t, flag.pb, flag.pc, true) : null,
         killer ? pill(killer, "var(--danger-soft)", "var(--danger)", true) : null,
@@ -1252,7 +1315,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
         o.threadId ? h("a", { href: gmailUrl, target: "_blank", rel: "noopener", text: "Open in Gmail" }) : null,
         h("span", { className: "muted", text: "Sent " + fmtDT(o.sentAt) + " to " + (o.to || []).join(", ") + ((o.cc && o.cc.length) ? " (cc " + o.cc.join(", ") + ")" : "") })));
     var convo = h("div", { className: "convo" });
-    if (msgs.length) msgs.forEach(function (m) { convo.appendChild(msgView(m)); });
+    if (msgs.length) msgs.forEach(function (m) { convo.appendChild(msgView(m, o)); });
     else {
       var did = "s-" + o.threadId;
       var det = h("details", { className: "msg out", id: did, open: !!S.open[did], ontoggle: function () { S.open[did] = det.open; } },
@@ -1611,7 +1674,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
   }
 
-  function msgView(m) {
+  function msgView(m, o) {
     if (isBounce(m.from)) return h("div", { className: "msg sys", text: "Delivery failed · " + fmtDT(m.date) + " · " + (m.snippet || "Gmail could not deliver this email.") });
     var out = isMe(m.from);
     var parts = splitQuoted(m.body);
@@ -1620,7 +1683,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (parts[1]) { var qid = "q-" + m.id; var q = h("details", { className: "quoted", id: qid, open: !!S.open[qid], ontoggle: function () { S.open[qid] = q.open; } }, h("summary", { text: "Show quoted text" }), h("div", { className: "body", text: parts[1] })); inner.push(q); }
     if (m.attachments && m.attachments.length) inner.push(h("div", { className: "small muted", text: "Attachments: " + m.attachments.join(", ") }));
     if (out) { var did = "m-" + m.id; var d = h("details", { className: "msg out", id: did, open: !!S.open[did], ontoggle: function () { S.open[did] = d.open; } }, h("summary", null, head), inner); return d; }
-    return h("div", { className: "msg in" }, head, inner);
+    var rd = o ? readOf(o, m) : null;
+    if (o && !rd) { head.firstChild.appendChild(h("span", { className: "newtag", text: "New" })); }
+    if (o) inner.push(h("div", { className: "readbar" },
+      rd ? h("span", { text: "\u2713 Read " + fmtDT(rd.at) + (rd.by ? " by " + rd.by : "") }) : h("span", { text: "Not marked read yet" }),
+      rd ? null : h("button", { className: "btn sm primary", type: "button", onclick: function () { markRead(o, [m.id]); }, text: "Mark read" })));
+    if (o && S.err["read-" + o.id]) inner.push(h("div", { className: "small", style: "color:var(--danger)", text: S.err["read-" + o.id] }));
+    return h("div", { className: "msg in" + (rd ? "" : " unread"), id: "msg-" + m.id }, head, inner);
   }
 
   setInterval(render, 60000);
@@ -1642,6 +1711,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
   window.claude.use("db").then(function (db) {
     if (!db) { clearTimeout(timer); S.dbState = "none"; render(); return; }
     S.db = db;
+    try { window.SF.sb.auth.getSession().then(function (r) { var u = r && r.data && r.data.session && r.data.session.user; if (u) S.me = u.email; }); } catch (e) {}
     timer = setTimeout(function () { if (S.dbState === "loading") { S.dbState = "error"; S.dbError = "the data store didn't answer"; render(); } }, 15000);
     var fail = function (e) { clearTimeout(timer); S.dbState = "error"; S.dbError = e && e.code; render(); };
     db.collection("runs").onSnapshot(function (snap) { S.runs = docs(snap); markLoaded("runs", snap); render(); }, fail);
