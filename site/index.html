@@ -216,6 +216,11 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .msg.sys{background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
 .msg-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .msg-head b{color:var(--ink)}
+.stage-next{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+.uw-list{margin:4px 0 10px;padding-left:20px;font-size:13px}
+.uw-list li{margin:2px 0;color:var(--ink-2)}
+.uw-list li.done{color:var(--success-ink)}
+.uw-list li.done::marker{content:'\2713  '}
 .msg.in.unread{border-color:var(--danger);box-shadow:inset 3px 0 0 var(--danger)}
 .readbar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .newtag{display:inline-block;background:var(--danger);color:#fff;border-radius:999px;padding:1px 7px;font-size:11px;font-weight:600;margin-left:6px}
@@ -327,8 +332,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
   ];
   var SCOLOR = {}; SCREENS.forEach(function (s) { SCOLOR[s.id] = s.c; });
   var STAGES = [
-    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "review", label: "Ready for review" }, { id: "approved", label: "Approved for offer" },
-    { id: "offer", label: "Offer out" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
+    { id: "new", label: "New" }, { id: "contacting", label: "Contacting agent" }, { id: "talking", label: "In talks" }, { id: "review", label: "Ready for review" }, { id: "underwriting", label: "Approved for underwriting" },
+    { id: "offerready", label: "Offer ready" }, { id: "offer", label: "Offer made" }, { id: "contract", label: "Under contract" }, { id: "dead", label: "Dead" }
   ];
   var BUCKETS = [
     { id: "needs", short: "Reply needed" }, { id: "held", short: "Claude has a question" }, { id: "draft", short: "Draft ready" },
@@ -517,15 +522,15 @@ input[type=file]{font-size:12.5px;max-width:100%}
   var COLS = [
     { id: "rejected", label: "Rejected", hint: "Failed a screen, went dead, or you passed. Drag one back out anytime.", dot: "#B8422E", pb: "var(--danger-soft)", pc: "var(--danger)", stage: "rejected" },
     { id: "contact", label: "Contact agent", hint: "Acreage or frontage still needs confirming. Claude is on it.", dot: "#C69B4F", pb: "var(--gold-soft)", pc: "var(--gold-ink)", stage: "new" },
-    { id: "contacted", label: "Agent contacted", hint: "Email sent. Waiting on the agent.", dot: "#4F79A8", pb: "var(--info-soft)", pc: "var(--info-ink)", stage: "contacting" },
-    { id: "talking", label: "In conversation", hint: "The agent replied. Claude is filling in what's still missing.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "talking" },
-    { id: "review", label: "Ready for review", hint: "Acreage and frontage check out. Do the quick manual review: approve or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
-    { id: "approved", label: "Approved for offer", hint: "Approved after review. Hire the agent and make the offer.", dot: "#3E9B2F", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "approved" },
-    { id: "offer", label: "Offer made", hint: "Offer is out. Drag here once you submit it.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
+    { id: "contacted", label: "Agent contacted", hint: "Emailing the agent: waiting on a reply or going back and forth. Claude confirms acreage and frontage.", dot: "#4F79A8", pb: "var(--info-soft)", pc: "var(--info-ink)", stage: "contacting" },
+    { id: "review", label: "Ready for review", hint: "Acreage and frontage are in. Quick look: approve for underwriting or reject.", dot: "#2F7F86", pb: "#E0EFEF", pc: "#1D4E52", stage: "review" },
+    { id: "underwriting", label: "Approved for underwriting", hint: "Claude gathers access, utilities, septic, restrictions and flood. You run the numbers and set the offer in Your review.", dot: "#7A6BB8", pb: "var(--purple-soft)", pc: "var(--purple-ink)", stage: "underwriting" },
+    { id: "offerready", label: "Offer ready", hint: "Underwriting done and the offer is set. Have Claude draft the offer email to the agent.", dot: "#3E9B2F", pb: "var(--success-soft)", pc: "var(--success-ink)", stage: "offerready" },
+    { id: "offer", label: "Offer made", hint: "The offer went to the agent. Waiting on the seller's answer.", dot: "#C2762B", pb: "var(--warn-soft)", pc: "var(--warn-ink)", stage: "offer" },
     { id: "contract", label: "Under contract", hint: "Accepted. Drag here when it goes under contract.", dot: "#2E5D3A", pb: "var(--accent-soft)", pc: "var(--accent)", stage: "contract" }
   ];
   var CMAP = {}; COLS.forEach(function (c) { CMAP[c.id] = c; });
-  CMAP.ready = CMAP.review; CMAP.aside = CMAP.rejected; // older saved column ids
+  CMAP.ready = CMAP.review; CMAP.aside = CMAP.rejected; CMAP.talking = CMAP.contacted; CMAP.approved = CMAP.underwriting; // older saved column ids
   var SCREEN_DOT = { "Ready to offer": "#4C8B3A", "Verify with agent": "#4F79A8", "Need APN": "#C69B4F", "Frontage short": "#B9B1A1", "Steep": "#A89F8E", "Fail": "#B8422E" };
 
   function runById(id) { for (var i = 0; i < S.runs.length; i++) if (S.runs[i].id === id) return S.runs[i]; return null; }
@@ -546,13 +551,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (os === "Accepted" || os === "Under contract" || d.stage === "contract") return "contract";
     if (os === "Submitted" || os === "Countered" || d.stage === "offer") return "offer";
     if (d.stage === "rejected" || d.stage === "dead") return "rejected";
-    if (d.stage === "approved") return "approved";
+    if (d.stage === "offerready") return "offerready";
+    if (d.stage === "underwriting" || d.stage === "approved") return "underwriting";
     if (d.stage === "review" || d.stage === "ready") return "review";
     if (d.screen === "Ready to offer" && (!d.stage || d.stage === "new")) return "review";
     var th = outreachForDeal(d);
-    if (th.length) return (d.stage === "talking" || th.some(function (o) { return inboundOf(o).length; })) ? "talking" : "contacted";
-    if (d.stage === "talking") return "talking";
-    if (d.stage === "contacting") return "contacted";
+    if (th.length || d.stage === "talking" || d.stage === "contacting") return "contacted";
     if (d.screen === "Ready to offer" || d.screen === "Verify with agent" || d.screen === "Need APN") return "contact";
     return "rejected";
   }
@@ -998,15 +1002,16 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var flag = dealFlag(d);
     var line;
     var rv0 = d.review || {};
-    if ((c.id === "review" || c.id === "approved" || c.id === "offer" || c.id === "contract") && (rv0.offerOpen || rv0.offerMax)) line = "Offer " + [rv0.offerOpen ? compact(rv0.offerOpen) : "", rv0.offerMax ? compact(rv0.offerMax) + " max" : ""].filter(Boolean).join(" to ");
-    else if (c.id === "offer" || c.id === "contract") line = d.offer && d.offer.amount ? "Offer " + money(d.offer.amount) + " · " + d.offer.status : "";
-    else if (c.id === "contacted" || c.id === "talking") line = d.agent && d.agent.name ? d.agent.name : "";
+    if ((c.id === "review" || c.id === "underwriting" || c.id === "offerready" || c.id === "offer" || c.id === "contract") && (rv0.offerOpen || rv0.offerMax)) line = "Offer " + [rv0.offerOpen ? compact(rv0.offerOpen) : "", rv0.offerMax ? compact(rv0.offerMax) + " max" : ""].filter(Boolean).join(" to ");
+    if ((c.id === "offer" || c.id === "contract") && d.offer && d.offer.amount) line = "Offered " + money(d.offer.amount) + (d.offer.date ? " on " + fmtDay(d.offer.date) : "") + (d.offer.status && d.offer.status !== "Submitted" ? " · " + d.offer.status : "");
+    else if (line) { /* your offer numbers */ }
+    else if (c.id === "contacted") line = (d.agent && d.agent.name ? d.agent.name + " · " : "") + (outreachForDeal(d).some(function (o) { return inboundOf(o).length; }) ? "agent replied" : "waiting on agent");
     else if (c.id === "rejected") line = rejReason(d);
     else line = d.offerHigh ? "2x offer " + compact(d.offerLow) + " to " + compact(d.offerHigh) : "";
     var rv = d.review || {};
     if (rv.resale) line = (line ? line + " · " : "") + "you: sells ~" + compact(rv.resale);
     var killer = (rv.killerTags && rv.killerTags.length) ? "Deal killer: " + rv.killerTags.join(", ") : ((rv.killers || "").trim() ? "Deal killer noted" : "");
-    var pc = (c.id === "contact" || c.id === "contacted" || c.id === "talking" || c.id === "review") ? prepCount(d) : null;
+    var pc = (c.id === "contact" || c.id === "contacted" || c.id === "review") ? prepCount(d) : (c.id === "underwriting" || c.id === "offerready") ? prepCount(d, true) : null;
     var card = h("button", { className: "dcard" + (S.route.deal === d.id ? " sel" : ""), type: "button", style: "--cc:" + c.dot, draggable: d._orphan ? null : "true",
       title: "Drag to another stage, or click to open", onclick: function () { go(r.id, d.id); },
       ondragstart: function (e) { S.dragging = d.id; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", d.id); setTimeout(function () { card.classList.add("dragging"); }, 0); },
@@ -1014,7 +1019,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "a", text: d.address }),
       h("span", { className: "m num", text: [d.county, d.acres != null ? d.acres + " ac" : "", money(d.asking)].filter(Boolean).join(" · ") }),
       line ? h("span", { className: "o num", text: line }) : null,
-      (pc || (d.files && d.files.length)) ? h("span", { className: "m", text: [pc ? "Review facts " + pc.known + "/" + pc.total : "", (d.files && d.files.length) ? d.files.length + (d.files.length === 1 ? " file" : " files") : ""].filter(Boolean).join(" · ") }) : null,
+      (pc || (d.files && d.files.length)) ? h("span", { className: "m", text: [pc ? (pc.uw ? "Underwriting facts " : "Review facts ") + pc.known + "/" + pc.total : "", (d.files && d.files.length) ? d.files.length + (d.files.length === 1 ? " file" : " files") : ""].filter(Boolean).join(" · ") }) : null,
       (unreadForDeal(d) || flag || killer || (pc && (pc.issue || pc.verify)) || c.id === "contact") ? h("span", { className: "tags" },
         unreadForDeal(d) ? pill(unreadForDeal(d) + " unread email" + (unreadForDeal(d) === 1 ? "" : "s"), "var(--danger-soft)", "var(--danger)", true) : null,
         pc && pc.issue ? pill(pc.issue + (pc.issue === 1 ? " problem found" : " problems found"), "var(--warn-soft)", "var(--warn-ink)", true) : null,
@@ -1023,6 +1028,87 @@ input[type=file]{font-size:12.5px;max-width:100%}
         killer ? pill(killer, "var(--danger-soft)", "var(--danger)", true) : null,
         c.id === "contact" ? pill(screenLabel(d.screen), "var(--surface-2)", "var(--ink-2)") : null) : null);
     return card;
+  }
+  // ---------- stage actions: the next step for each column, one click ----------
+  function moveTo(d, colId, extra) { var to = CMAP[colId]; var patch = Object.assign({ col: to.id, stage: to.stage }, extra || {}); Object.assign(d, patch); updateDeal(d, patch); render(); }
+  function offerIdeas(d) {
+    var out = [];
+    Object.keys(S.ideas).forEach(function (k) { var i = S.ideas[k]; if (i && i.offer && (i.dealId === d.id || k === "new-" + d.id)) out.push(Object.assign({ _id: k }, i)); });
+    return out.sort(function (a, b) { return String(b.instructionAt || "").localeCompare(String(a.instructionAt || "")); });
+  }
+  function stageActions(d, c) {
+    var rv = d.review || {}, box = h("div", { className: "box stage-next" });
+    var lbl = function (t) { return h("span", { className: "lbl", text: t }); };
+    if (c.id === "review") {
+      box.appendChild(lbl("Next step: your quick review"));
+      box.appendChild(h("p", { className: "small muted", style: "margin:0 0 8px", text: "Acreage and frontage are below. If it's worth a closer look, approve it for underwriting and Claude starts on access, utilities, septic, restrictions and flood." }));
+      box.appendChild(h("div", { className: "row" },
+        h("button", { className: "btn primary", type: "button", onclick: function () { moveTo(d, "underwriting"); }, text: "Approve for underwriting" }),
+        h("button", { className: "btn ghost", type: "button", onclick: function () { moveTo(d, "rejected"); }, text: "Reject" })));
+      return box;
+    }
+    if (c.id === "underwriting") {
+      var un = prepCount(d, true), hasOffer = rv.offerOpen || rv.offerMax;
+      box.appendChild(lbl("Next step: underwriting"));
+      box.appendChild(h("ul", { className: "uw-list" },
+        h("li", { className: un.known === un.total ? "done" : "", text: "Site facts: " + un.known + " of " + un.total + " known" + (un.issue ? ", " + un.issue + " problem" + (un.issue === 1 ? "" : "s") : "") + " (Claude, below)" }),
+        h("li", { className: d.calc ? "done" : "", text: "Exit scenarios run (The numbers, below)" }),
+        h("li", { className: rv.resale ? "done" : "", text: "Your resale estimate and lot count (Your review)" }),
+        h("li", { className: hasOffer ? "done" : "", text: hasOffer ? "Offer set: " + [rv.offerOpen ? money(rv.offerOpen) + " opening" : "", rv.offerMax ? money(rv.offerMax) + " max" : ""].filter(Boolean).join(", ") : "Opening and max offer (Your review)" })));
+      box.appendChild(h("div", { className: "row" },
+        h("button", { className: "btn primary", type: "button", onclick: function () { moveTo(d, "offerready"); }, text: "Offer ready" }),
+        h("button", { className: "btn ghost", type: "button", onclick: function () { moveTo(d, "rejected"); }, text: "Reject" }),
+        hasOffer ? null : h("span", { className: "state", text: "Set your opening and max offer in Your review first." })));
+      return box;
+    }
+    if (c.id === "offerready") return offerBox(d);
+    if (c.id === "offer") {
+      var of = d.offer || {};
+      box.appendChild(lbl("Offer made"));
+      box.appendChild(h("p", { style: "margin:0 0 8px", text: of.amount ? "Offered " + money(of.amount) + (of.date ? " on " + fmtDay(of.date) : "") + (of.via === "email" ? " by email" : "") + (of.terms ? ". Terms: " + of.terms : "") + "." : "Offer sent to the agent. Replies show in the email thread below." }));
+      box.appendChild(h("div", { className: "row" },
+        h("button", { className: "btn primary", type: "button", onclick: function () { moveTo(d, "contract", { offer: Object.assign({}, of, { status: "Accepted" }) }); }, text: "Accepted: under contract" }),
+        h("button", { className: "btn", type: "button", onclick: function () { moveTo(d, "offerready"); }, text: "Back to Offer ready (new number)" }),
+        h("button", { className: "btn ghost", type: "button", onclick: function () { moveTo(d, "rejected", { offer: Object.assign({}, of, { status: "Declined" }) }); }, text: "Seller said no" })));
+      return box;
+    }
+    return null;
+  }
+  function offerBox(d) {
+    var rv = d.review || {}, key = "offer-" + d.id, threads = outreachForDeal(d).slice().reverse();
+    var st = S.local[key] || (S.local[key] = { amount: rv.offerOpen ? String(rv.offerOpen) : "", terms: "", to: threads.length ? threads[0].threadId : "new" });
+    var box = h("div", { className: "box stage-next", id: key }, h("span", { className: "lbl", text: "Next step: make the offer" }));
+    var pend = offerIdeas(d).filter(function (i) { return i.state !== "sent" && i.state !== "done"; })[0];
+    if (pend) {
+      var msg = { waiting: "Claude drafts the offer email on the next check (" + nextCheck() + ").", draft: "The offer email is drafted. Approve it in the email thread below.", approved: "Approved. Claude sends it on the next check (" + nextCheck() + ") and moves this to Offer made.", held: "Claude has a question about the offer email: " + (pend.heldReason || "see the thread below.") }[pend.state] || "";
+      box.appendChild(h("div", { className: "note", text: "Offer of " + money(pend.offer.amount) + (pend.offer.terms ? " (" + pend.offer.terms + ")" : "") + ". " + msg }));
+      return box;
+    }
+    box.appendChild(h("p", { className: "small muted", style: "margin:0 0 8px", text: "Claude drafts the offer email to the agent; you approve it before it goes. Once it's sent, the deal moves to Offer made." + (rv.offerMax ? " Your max is " + money(rv.offerMax) + "." : "") }));
+    var opts = threads.map(function (o) { return h("option", { value: o.threadId, text: "Reply in: " + (o.subject || o.property) + " (" + ((o.to || [])[0] || o.agent || "") + ")", selected: st.to === o.threadId }); });
+    if (d.agent && d.agent.email) opts.push(h("option", { value: "new", text: "New email to " + d.agent.email, selected: st.to === "new" }));
+    box.appendChild(h("div", { className: "grid2" },
+      h("label", { className: "f" }, "Offer ($)", h("input", { type: "number", id: key + "-amt", step: "1000", min: "0", value: st.amount, oninput: function (e) { st.amount = e.target.value; } })),
+      h("label", { className: "f" }, "Send to", opts.length ? h("select", { id: key + "-to", onchange: function (e) { st.to = e.target.value; } }, opts) : h("span", { className: "small muted", text: "No agent email on file yet." }))));
+    box.appendChild(h("label", { className: "f", style: "margin-top:8px" }, "Terms (optional)", h("input", { type: "text", id: key + "-terms", placeholder: "e.g. cash, close in 30 days, 21-day due diligence, subject to survey", value: st.terms, oninput: function (e) { st.terms = e.target.value; } })));
+    var draftIt = function () {
+      var amt = Math.round(parseFloat(st.amount));
+      if (!(amt > 0)) { S.err[key] = "Enter the offer amount."; render(); return; }
+      var tid = st.to === "new" ? "new-" + d.id : st.to, o = st.to === "new" ? null : threads.filter(function (x) { return x.threadId === tid; })[0];
+      var cur = S.ideas[tid];
+      if (cur && (cur.state === "waiting" || cur.state === "draft" || cur.state === "approved" || cur.state === "held")) { S.err[key] = "That thread already has an email in progress. Finish or discard it first."; render(); return; }
+      var terms = (st.terms || "").trim();
+      S.err[key] = null;
+      setIdea(tid, { kind: o ? "reply" : "first", threadId: o ? o.threadId : null, dealId: d.id, property: d.address, agent: d.agent ? d.agent.name : "", runId: d.runId || "",
+        state: "waiting", instructionAt: new Date().toISOString(), offer: { amount: amt, terms: terms },
+        instruction: "Make an offer of " + money(amt) + " on " + d.address + "." + (terms ? " Terms: " + terms + "." : "") + " Ask the agent to present it to the seller and confirm they received it. Keep it short and friendly.",
+        history: (cur && cur.instruction) ? (cur.history || []).concat([{ instruction: cur.instruction, sentAt: cur.sentAt }]).slice(-10) : [] });
+    };
+    box.appendChild(h("div", { className: "row", style: "margin-top:10px" },
+      opts.length ? h("button", { className: "btn primary", type: "button", onclick: draftIt, text: "Have Claude draft the offer email" }) : null,
+      h("button", { className: "btn", type: "button", onclick: function () { var amt = Math.round(parseFloat(st.amount)); moveTo(d, "offer", { offer: { amount: amt > 0 ? amt : null, terms: (st.terms || "").trim(), date: todayCT(), status: "Submitted", via: "you" } }); }, text: "I sent the offer myself" }),
+      S.err[key] ? h("span", { className: "state err", text: S.err[key] }) : null));
+    return box;
   }
   function dropDeal(id, colId) {
     S.dragging = null; S.renderAfterDrag = false;
@@ -1051,10 +1137,11 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { k: "flood", t: "Flood, wetlands and slope" }
   ];
   var PREP_STATES = { ok: { t: "Known", pb: "var(--success-soft)", pc: "var(--success-ink)" }, issue: { t: "Problem", pb: "var(--warn-soft)", pc: "var(--warn-ink)" }, asked: { t: "Asked agent", pb: "var(--info-soft)", pc: "var(--info-ink)" }, missing: { t: "Missing", pb: "var(--surface-2)", pc: "var(--ink-2)" } };
+  var UW_COLS = { underwriting: 1, offerready: 1, offer: 1, contract: 1 };
   function prepItem(d, k) { var it = d.prep && d.prep.items && d.prep.items[k]; return it && PREP_STATES[it.s] ? it : { s: "missing" }; }
-  function prepCount(d) {
-    var n = { known: 0, issue: 0, total: 0 };
-    PREP_ITEMS.forEach(function (p) { if (!p.req) return; n.total++; var it = prepItem(d, p.k), s = it.s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; if (it.verify && (s === "ok" || s === "issue")) n.verify = (n.verify || 0) + 1; });
+  function prepCount(d, uw) {
+    var n = { known: 0, issue: 0, total: 0, uw: !!uw };
+    PREP_ITEMS.forEach(function (p) { if (uw ? p.req : !p.req) return; n.total++; var it = prepItem(d, p.k), s = it.s; if (s === "ok" || s === "issue") n.known++; if (s === "issue") n.issue++; if (it.verify && (s === "ok" || s === "issue")) n.verify = (n.verify || 0) + 1; });
     return n;
   }
   function prepBox(d) {
@@ -1064,8 +1151,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
         h("span", { className: "lbl", style: "margin:0", text: "Review facts · " + n.known + " of " + n.total + " known" + (n.issue ? " · " + n.issue + " problem" + (n.issue === 1 ? "" : "s") : "") }),
         h("span", { className: "small muted", text: p.updatedAt ? "Claude updated " + fmtDT(p.updatedAt) : "Claude fills these in on each check" })));
     var list = h("div", { className: "prep" }), laterKey = "later-" + d.id;
+    var inUw = UW_COLS[colFor(d)], un = prepCount(d, true);
+    if (inUw && S.open[laterKey] == null) S.open[laterKey] = true;
     var later = h("details", { className: "prep-later", id: laterKey, open: !!S.open[laterKey], ontoggle: function () { S.open[laterKey] = later.open; } },
-      h("summary", { text: "Later: utilities and site facts (not needed for review yet)" }));
+      h("summary", { text: inUw ? "Underwriting facts · " + un.known + " of " + un.total + " known (Claude gathers these once you approve for underwriting)" : "Underwriting facts: utilities and site facts (gathered after you approve for underwriting)" }));
     var laterList = h("div", { className: "prep" }); later.appendChild(laterList);
     PREP_ITEMS.forEach(function (pi) {
       var list0 = list; if (!pi.req) list = laterList;
@@ -1101,7 +1190,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     prep.items[k] = { s: ed.s, v: (ed.v || "").trim(), src: "You, " + new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: TZ }) };
     var patch = { prep: prep };
     var tmp = Object.assign({}, d, { prep: prep }), c = colFor(d);
-    var tc = prepCount(tmp); if (!d.col && tc.known === tc.total && (c === "contact" || c === "contacted" || c === "talking")) patch.stage = "review";
+    var tc = prepCount(tmp); if (!d.col && tc.known === tc.total && (c === "contact" || c === "contacted")) patch.stage = "review";
     S.busy[ek] = true; S.err[ek] = null; render();
     S.db.doc("deals/" + d.id).update(patch).then(function () { d.prep = prep; if (patch.stage) d.stage = patch.stage; S.busy[ek] = false; delete S.local[ek]; render(); })
       .catch(function (e) { S.busy[ek] = false; S.err[ek] = "Couldn't save (" + ((e && e.code) || "error") + ")."; render(); });
@@ -1275,6 +1364,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var body = h("div", { className: "dr-body" });
     body.appendChild(h("div", { className: "box row" }, h("label", { className: "lbl", "for": "move-" + d.id, style: "margin:0" }, "Stage"), h("div", { style: "flex:1;min-width:180px" }, moveSel),
       S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null));
+    if (!d._orphan) { var sa = stageActions(d, c); if (sa) body.appendChild(sa); }
     if (!d._orphan) body.appendChild(prepBox(d));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d)));
     if (d.notes) body.appendChild(h("div", { className: "note" }, h("b", { text: "From the listing and agent emails: " }), d.notes));
@@ -1382,7 +1472,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       text = String(text || "").trim();
       if (!text) { S.err[key] = "Type what the email should say first."; render(); return; }
       S.err[key] = null;
-      setIdea(id, Object.assign({}, base, { state: "waiting", instruction: text, instructionAt: now(), history: (idea.history || []).concat(idea.state === "sent" ? [{ instruction: idea.instruction, sentAt: idea.sentAt }] : []).slice(-10) }));
+      setIdea(id, Object.assign({}, base, idea.offer && idea.state !== "sent" ? { offer: idea.offer } : {}, { state: "waiting", instruction: text, instructionAt: now(), history: (idea.history || []).concat(idea.state === "sent" ? [{ instruction: idea.instruction, sentAt: idea.sentAt }] : []).slice(-10) }));
     };
     var wrap = h("div", { className: "compose", id: key });
     wrap.appendChild(h("div", { className: "lbl", text: kind === "first" ? "First email to the agent" : "Next email in this thread" }));
