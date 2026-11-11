@@ -216,6 +216,8 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .msg.sys{background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
 .msg-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .msg-head b{color:var(--ink)}
+.stage-row{margin-top:12px}
+.stage-row select{width:100%}
 .stage-next{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
 .uw-list{margin:4px 0 10px;padding-left:20px;font-size:13px}
 .uw-list li{margin:2px 0;color:var(--ink-2)}
@@ -1362,11 +1364,12 @@ input[type=file]{font-size:12.5px;max-width:100%}
           d.links && d.links.redfin ? h("a", { href: d.links.redfin, target: "_blank", rel: "noopener", text: "Redfin" }) : null,
           d.links && d.links.landportal ? h("a", { href: d.links.landportal, target: "_blank", rel: "noopener", text: "Land Portal" }) : null)));
     var body = h("div", { className: "dr-body" });
-    body.appendChild(h("div", { className: "box row" }, h("label", { className: "lbl", "for": "move-" + d.id, style: "margin:0" }, "Stage"), h("div", { style: "flex:1;min-width:180px" }, moveSel),
-      S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null));
+    var stageRow = h("div", { className: "f stage-row" }, h("label", { "for": "move-" + d.id, text: "Stage" }), moveSel,
+      S.err["deal-" + d.id] ? h("span", { className: "state err", text: S.err["deal-" + d.id] }) : null);
+    if (d._orphan) body.appendChild(h("div", { className: "box" }, stageRow));
     if (!d._orphan) { var sa = stageActions(d, c); if (sa) body.appendChild(sa); }
     if (!d._orphan) body.appendChild(prepBox(d));
-    if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d)));
+    if (!d._orphan) body.appendChild(h("div", { className: "box" }, reviewEditor(d, stageRow)));
     if (d.notes) body.appendChild(h("div", { className: "note" }, h("b", { text: "From the listing and agent emails: " }), d.notes));
     if (!d._orphan) body.appendChild(h("div", { className: "box" }, h("span", { className: "lbl", text: "The numbers" }), h("div", { className: "figs" },
       fig("2x offer range", d.offerHigh ? money(d.offerLow) + " to " + money(d.offerHigh) : ""),
@@ -1726,7 +1729,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { k: "notes", label: "Other notes", rows: 3, ph: "Site visit, calls, anything else" }
   ];
   var KILLER_TAGS = ["Too steep", "False/no frontage", "No homesites", "Flood zone/wetland"];
-  function reviewEditor(d) {
+  function reviewEditor(d, stageRow) {
     var key = "review-" + d.id, rv = d.review || {};
     var st = S.local[key] || (S.local[key] = { resale: rv.resale != null ? String(rv.resale) : "", offerOpen: rv.offerOpen != null ? String(rv.offerOpen) : "", offerMax: rv.offerMax != null ? String(rv.offerMax) : "", lots: rv.lots != null ? String(rv.lots) : "", basis: rv.basis || "", defects: rv.defects || "", killers: rv.killers || "", killerTags: (rv.killerTags || []).slice(), notes: rv.notes || "" });
     var touch = function () { st.dirty = 1; st.v = (st.v || 0) + 1; S.err[key] = null; };
@@ -1751,7 +1754,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
               var i = st.killerTags.indexOf(t); if (i >= 0) st.killerTags.splice(i, 1); else st.killerTags.push(t);
               touch(); saveReview(d, st, key); }, text: t });
           })),
-          h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], "aria-label": "Other deal killers", oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
+          h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], "aria-label": "Other deal killers", oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }),
+          stageRow || null);
         return h("label", { className: "f" }, f.label, h("textarea", { id: key + "-" + f.k, rows: String(f.rows), placeholder: f.ph, value: st[f.k], oninput: function (e) { st[f.k] = e.target.value; touch(); }, onblur: saveIfDirty }));
       }),
       h("div", { className: "row-actions" },
