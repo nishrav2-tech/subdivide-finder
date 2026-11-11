@@ -216,6 +216,8 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .msg.sys{background:var(--surface-2);font-size:12.5px;color:var(--ink-2)}
 .msg-head{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--ink-3);flex-wrap:wrap}
 .msg-head b{color:var(--ink)}
+.by-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.by-tags .pill{white-space:normal;overflow-wrap:anywhere}
 .stage-row{margin-top:12px}
 .stage-row select{width:100%}
 .stage-next{border-color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
@@ -852,7 +854,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     S.busy[key] = true; S.err[key] = null; render();
     var base = defaultCriteria(), c = Object.assign({}, st.c);
     var id = (st.state + "-" + names.join("-") + "-" + todayCT()).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 120);
-    S.db.doc("runs/" + id).set({ state: st.state, counties: names, fips: fips, allApproved: false, minAcres: +c.minAcres || 10, criteria: c, criteriaChanged: critDiff(c, base), label: st.label.trim(), status: "queued", requestedAt: new Date().toISOString() })
+    S.db.doc("runs/" + id).set({ state: st.state, counties: names, fips: fips, allApproved: false, minAcres: +c.minAcres || 10, criteria: c, criteriaChanged: critDiff(c, base), label: st.label.trim(), status: "queued", requestedAt: new Date().toISOString(), requestedBy: S.me || "" })
       .then(function () { S.busy[key] = false; delete S.local[key]; S.showNew = false; render(); })
       .catch(function (e) { S.busy[key] = false; S.err[key] = "Couldn't add it (" + ((e && e.code) || "error") + ")."; render(); });
   }
@@ -890,11 +892,17 @@ input[type=file]{font-size:12.5px;max-width:100%}
     root.appendChild(grid);
     return root;
   }
+  // Who started a search (all signed-in users see every search; this shows whose it is)
+  function byTags(r) {
+    var tags = [pill("Searched by " + (r.requestedBy || "Jay (via Claude chat)"), "var(--surface-2)", "var(--ink-2)")];
+    if (r.rerunBy && r.rerunBy !== r.requestedBy) tags.push(pill("Re-run by " + r.rerunBy, "var(--surface-2)", "var(--ink-2)"));
+    return h("div", { className: "by-tags" }, tags);
+  }
   function searchCard(r, st) {
     var sm = r.summary || {}, n = st.deals.length;
     var card = h("button", { className: "scard", type: "button", onclick: function () { go(r.id); } },
       h("div", { className: "t" },
-        h("div", null, h("h3", { text: runTitle(r) }), h("div", { className: "sub", text: runCounties(r) + " · requested " + fmtDT(r.requestedAt) })),
+        h("div", null, h("h3", { text: runTitle(r) }), h("div", { className: "sub", text: runCounties(r) + " · requested " + fmtDT(r.requestedAt) }), byTags(r)),
         statusPill(r)));
     if (!n && (r.status === "queued" || r.status === "running")) {
       card.appendChild(h("p", { className: "small muted", text: r.status === "running" ? "Claude is screening these counties now." : "Runs at the next queue time (12:47, 4:47 or 8:47 PM Central), or right away when you say \"run the queue\" in chat." }));
@@ -920,10 +928,10 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var root = h("div");
     root.appendChild(h("a", { className: "crumb", href: "#/", text: "← All searches" }));
     root.appendChild(h("div", { className: "page-head" },
-      h("div", null, h("h1", { text: runTitle(r) }),
+      h("div", null, h("h1", { text: runTitle(r) }), byTags(r),
         h("p", { text: [runCounties(r), r.minAcres ? "over " + r.minAcres + " ac" : "", "requested " + fmtDT(r.requestedAt), r.finishedAt ? "finished " + fmtDT(r.finishedAt) : ""].filter(Boolean).join(" · ") })),
       h("div", { className: "row" }, statusPill(r),
-        r.status === "done" || r.status === "failed" ? h("button", { className: "btn sm", type: "button", onclick: function () { S.db.doc("runs/" + r.id).update({ status: "queued", requestedAt: new Date().toISOString(), note: "Re-run requested." }).catch(function () {}); }, text: "Run again" }) : null,
+        r.status === "done" || r.status === "failed" ? h("button", { className: "btn sm", type: "button", onclick: function () { S.db.doc("runs/" + r.id).update({ status: "queued", requestedAt: new Date().toISOString(), note: "Re-run requested.", rerunBy: S.me || "", rerunAt: new Date().toISOString() }).catch(function () {}); }, text: "Run again" }) : null,
         r.status === "queued" ? h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.db.doc("runs/" + r.id).delete().then(function () { go(null); }).catch(function () {}); }, text: "Remove from queue" }) : null)));
 
     root.appendChild(runCriteriaLine(r));
