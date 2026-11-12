@@ -209,12 +209,11 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .prep-later>summary{cursor:pointer;font-size:12.5px;color:var(--ink-3);padding:4px 0}
 .prep-row .req{color:var(--ink-3);font-weight:400}
 .prep-post>summary{cursor:pointer;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
-.calc-toggle{margin-top:8px}
 .offer-terms{border-color:var(--accent,#2f6fdf)}
 .terms-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:10px}
 .terms-grid .wide{grid-column:span 2}
 .terms-grid input{min-width:0}
-.uw-top{display:grid;grid-template-columns:180px 180px;gap:8px;margin:10px 0 12px}
+.uw-top{display:grid;grid-template-columns:180px;gap:8px;margin:10px 0 12px}
 .uw-top input{min-width:0}
 .uw-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r-md)}
 table.t.uw-t{font-size:12px;width:100%;border-collapse:separate;border-spacing:0}
@@ -226,6 +225,12 @@ table.t.uw-t td.in{padding:2px 3px}
 table.t.uw-t td input[type=number]{width:78px;min-width:0;padding:3px 5px;font-size:12px;text-align:right;border-color:transparent;background:var(--accent-soft);border-radius:4px;-moz-appearance:textfield}
 table.t.uw-t td input[type=number]:focus{border-color:var(--accent);background:var(--surface)}
 table.t.uw-t input::-webkit-outer-spin-button,table.t.uw-t input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+table.t.uw-t td input.tot-in{width:92px;font-weight:600;background:var(--surface);border-color:var(--border)}
+table.t.uw-t td input.tot-in:focus{border-color:var(--accent)}
+table.t.uw-t td input.off{border-color:var(--danger);color:var(--danger)}
+table.t.uw-t td input::placeholder{color:var(--ink-3);opacity:1}
+table.t.uw-t td input[type=number]:placeholder-shown:not(:focus){background:transparent;border:1px dashed var(--border)}
+table.t.uw-t td input.tot-in:placeholder-shown:not(:focus){background:transparent;border-color:var(--border)}
 table.t.uw-t th input.nm{width:82px;padding:3px 5px;font-size:11px;font-weight:600;text-align:right;text-transform:none}
 table.t.uw-t td input.lab-in{width:124px;padding:2px 4px;font-size:12px;border-color:transparent;background:transparent}
 table.t.uw-t td input.lab-in:focus{border-color:var(--accent)}
@@ -1691,15 +1696,9 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function exitCalcBox(d, r) {
     var fips = dealFips(d), key = "calc-" + d.id;
     var st = S.local[key] || (S.local[key] = calcCfg(d, r));
-    var xk = "calcx-" + d.id, ex = !!S.open[xk];
-    var toggle = function () { S.open[xk] = !ex; render(); };
     var box = h("div", { className: "box" }, h("div", { className: "row", style: "justify-content:space-between" },
       h("span", { className: "lbl", style: "margin:0", text: "Exit scenarios · CRM subdivide calculator" }),
-      h("span", { className: "row", style: "gap:8px" },
-        h("span", { className: "small muted", text: ex && fips && S.mk[fips] && S.mk[fips].ppa_at ? d.county + " Co. lot sales, pulled " + fmtDT(S.mk[fips].ppa_at) : "" }),
-        h("button", { className: "btn sm ghost", type: "button", id: xk + "-btn", "aria-expanded": ex ? "true" : "false", onclick: toggle, text: ex ? "Hide calculator" : "Open calculator" }))));
-    var calcIn = box;
-    if (!ex) box = h("div");
+      h("span", { className: "small muted", text: fips && S.mk[fips] && S.mk[fips].ppa_at ? d.county + " Co. lot sales, pulled " + fmtDT(S.mk[fips].ppa_at) : "" })));
     var num = function (k, label, attrs) {
       return h("label", { className: "f" }, label, h("input", Object.assign({ type: "number", id: key + "-" + k, value: st[k] === "" ? "" : String(st[k]),
         oninput: function (e) { st[k] = e.target.value; },
@@ -1713,7 +1712,6 @@ input[type=file]{font-size:12.5px;max-width:100%}
       num("mult", "Target multiple", { step: "0.1", min: "1" }),
       num("maxLotsPer10", "Max lots / 10 ac", { step: "0.5", min: "0.5", max: "40", title: "Most lots allowed per 10 acres; scales with the tract size" }),
       h("button", { className: "btn primary", type: "button", onclick: function () { runCalc(d, st, key); }, text: "Calculate" })));
-    if (!ex) box = calcIn;
     if (!fips) { box.appendChild(h("p", { className: "small muted", text: "Couldn't match " + (d.county || "this county") + " to the CRM's county list." })); return box; }
     loadMk(fips);
     var row = S.mk[fips];
@@ -1724,7 +1722,6 @@ input[type=file]{font-size:12.5px;max-width:100%}
     if (!res.rows.length && !res.wholeRow) { box.appendChild(h("p", { className: "small muted", text: "No split options for " + res.A + " acres at " + st.maxLotsPer10 + " lots per 10 acres." })); return box; }
     var best = res.best;
     var bestTxt = best.kind === "whole" ? "sell whole" : best.N + " lots of " + best.L.toFixed(1) + " ac";
-    var full = box; if (!ex) box = h("div");
     box.appendChild(h("div", { className: "note" + (res.ask && !res.reached ? " neg" : ""), style: "margin:10px 0 0",
       text: !res.ask ? "No price entered: showing the split with the highest offer at " + res.mult + "x." :
         res.reached ? "Fewest lots that reach " + res.mult + "x at " + money(res.ask) + ": " + bestTxt + " (cap " + res.nMax + " lots at " + res.per10 + " per 10 ac)." :
@@ -1739,14 +1736,11 @@ input[type=file]{font-size:12.5px;max-width:100%}
     sum.appendChild(h("div", null, h("span", { text: "Net resale, " + (best.kind === "whole" ? "sold whole" : best.N + " lots") }), h("b", { text: money(best.netLow) + " to " + money(best.netHigh) }), h("small", { text: best.sell && best.sell.lo != null ? sellTxt(best.sell) + " to sell out" : "" })));
     sum.appendChild(h("div", null, h("span", { text: "Tract sold whole today" }), h("b", { text: res.wholeVal != null ? "about " + money(res.wholeVal) : "—" }), h("small", { text: res.whole.n ? kM(res.whole.med) + "/ac median" : "No sales" })));
     box.appendChild(sum);
-    box = full;
     var tb = h("tbody");
     // Show the lot counts around the pick (fewest first), at most 12 rows, plus selling whole.
     var bi = res.rows.indexOf(best), end = Math.min(res.rows.length, Math.max(bi, 0) + 4), start = Math.max(0, end - 12);
     var all = res.rows.slice(start, end); if (res.wholeRow) all.push(res.wholeRow);
-    var shown = all;
-    if (!ex) { var pi0 = all.indexOf(best); if (pi0 < 0) pi0 = 0; var s0 = Math.min(pi0, Math.max(0, all.length - 2)); shown = all.slice(s0, s0 + 2); }
-    shown.forEach(function (x) {
+    all.forEach(function (x) {
       var flags = [];
       if (x.capped) flags.push(x.offerLow > res.wholeVal ? "above market value" : "top end above market");
       if (x.d.n < MK_CALC_MIN_N) flags.push("thin data");
@@ -1768,10 +1762,6 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("thead", null, h("tr", null, h("th", { text: "Exit (" + res.A + " ac)" }), h("th", { className: "r", text: "Lot $/ac" }), h("th", { className: "r", text: "Net resale" }),
         h("th", { className: "r", text: "Offer at " + res.mult + "x" }), h("th", { className: "r", text: "Profit" }), h("th"))),
       tb)));
-    if (!ex) {
-      if (all.length > shown.length) box.appendChild(h("button", { className: "btn sm ghost calc-toggle", type: "button", onclick: toggle, text: "Show all " + all.length + " exits, inputs and totals" }));
-      return box;
-    }
     if (res.rows.length > all.length - (res.wholeRow ? 1 : 0)) box.appendChild(h("p", { className: "small muted", text: "Showing " + all.filter(function (x) { return x.kind !== "whole"; }).map(function (x) { return x.N; }).join(", ") + " lots of the 2 to " + res.nMax + " allowed." }));
     box.appendChild(h("p", { className: "small muted", text: "Same math as the CRM Markets calculator: county lot sales over the last 12 months near each lot size (widened until there are 8 sales), less your discount and costs. Offer low uses 25th-percentile prices, high uses the median. The pick is the fewest lots that reach your target multiple at the price, up to your max lots per 10 acres. Use copies that offer range into Your review." }));
     return box;
@@ -1861,28 +1851,53 @@ input[type=file]{font-size:12.5px;max-width:100%}
   function uwDefault(d, r) {
     var rv = d.review || {}, n = Math.max(1, Math.round(rv.lots || d.splitLots || 1)), A = +d.acres || 0;
     var parcels = [];
-    for (var i = 0; i < n; i++) parcels.push({ id: uwId(), name: "Parcel " + (i + 1), acres: A ? +(A / n).toFixed(2) : "", dispo: "", acq: "", close: "" });
-    var items = ["Clearing homesites", "Gravel driveways", "Road improvements", "Survey and split"].map(function (t) { return { id: uwId(), label: t, v: {} }; });
-    return { price: (d.terms && d.terms.price) || rv.offerOpen || d.asking || "", sellPct: 8, parcels: parcels, items: items };
+    for (var i = 0; i < n; i++) parcels.push({ id: uwId(), name: "Parcel " + (i + 1), acres: "", dispo: "", acq: "", close: "" });
+    var items = ["Clearing homesites", "Gravel driveways", "Road improvements", "Survey and split"].map(function (t) { return { id: uwId(), label: t, v: {}, tot: "" }; });
+    return { price: (d.terms && d.terms.price) || rv.offerOpen || d.asking || "", sellPct: 8, tot: { acres: A || "", dispo: "", close: "" }, parcels: parcels, items: items };
+  }
+  function uwBlank(v) { return v === "" || v == null || !isFinite(parseFloat(String(v).replace(/[$,%\s]/g, ""))); }
+  // One line item across the parcels. A typed parcel cell always wins. A typed Total is split over the blank parcel
+  // cells (by weight w, else evenly); with no Total, the Total is the sum of the parcel cells.
+  function uwSplit(typed, tot, w) {
+    var n = typed.length, v = [], blanks = [], tSum = 0, i;
+    for (i = 0; i < n; i++) { if (uwBlank(typed[i])) { v.push(0); blanks.push(i); } else { v.push(uwNum(typed[i])); tSum += v[i]; } }
+    var hasTot = !uwBlank(tot), T = hasTot ? uwNum(tot) : 0;
+    if (hasTot && blanks.length) {
+      var rem = Math.max(0, T - tSum), ws = 0;
+      blanks.forEach(function (k) { ws += (w && w[k] > 0) ? w[k] : 0; });
+      blanks.forEach(function (k) { v[k] = ws > 0 ? rem * ((w[k] > 0 ? w[k] : 0) / ws) : rem / blanks.length; });
+    }
+    var sum = v.reduce(function (a, b) { return a + b; }, 0);
+    return { v: v, auto: typed.map(uwBlank), sum: sum, hasTot: hasTot, off: hasTot && Math.abs(sum - T) > 0.5 };
+  }
+  function uwRows(sh) {
+    sh.tot = sh.tot || {};
+    var P = sh.parcels, col = function (k) { return P.map(function (p) { return p[k]; }); };
+    var R = {};
+    R.acres = uwSplit(col("acres"), sh.tot.acres, null);
+    var wA = R.acres.sum > 0 ? R.acres.v : null;
+    R.dispo = uwSplit(col("dispo"), sh.tot.dispo, wA);
+    R.acq = uwSplit(col("acq"), sh.price, wA);
+    R.close = uwSplit(col("close"), sh.tot.close, wA);
+    sh.items.forEach(function (it) { R["i-" + it.id] = uwSplit(P.map(function (p) { return it.v[p.id]; }), it.tot, wA); });
+    return R;
   }
   function uwCalc(sh) {
-    var P = uwNum(sh.price), A = 0, sp = uwNum(sh.sellPct) / 100;
-    sh.parcels.forEach(function (p) { A += uwNum(p.acres); });
-    var col = sh.parcels.map(function (p) {
-      var a = uwNum(p.acres), auto = p.acq === "" || p.acq == null;
-      var acq = auto ? (A ? P * a / A : P / (sh.parcels.length || 1)) : uwNum(p.acq);
-      var dispo = uwNum(p.dispo), sell = dispo * sp, net = dispo - sell, close = uwNum(p.close);
-      var imp = {}, impT = 0; sh.items.forEach(function (it) { var v = uwNum(it.v[p.id]); imp[it.id] = v; impT += v; });
+    var sp = uwNum(sh.sellPct) / 100, R = uwRows(sh);
+    var col = sh.parcels.map(function (p, j) {
+      var a = R.acres.v[j], acq = R.acq.v[j], dispo = R.dispo.v[j], sell = dispo * sp, net = dispo - sell, close = R.close.v[j];
+      var imp = {}, impT = 0; sh.items.forEach(function (it) { var v = R["i-" + it.id].v[j]; imp[it.id] = v; impT += v; });
       var cost = acq + close + impT;
-      return { a: a, acq: acq, auto: auto, dispo: dispo, sell: sell, net: net, close: close, imp: imp, impT: impT, cost: cost, profit: net - cost };
+      return { a: a, acq: acq, dispo: dispo, sell: sell, net: net, close: close, imp: imp, impT: impT, cost: cost, profit: net - cost };
     });
     var T = { a: 0, acq: 0, dispo: 0, sell: 0, net: 0, close: 0, imp: {}, impT: 0, cost: 0, profit: 0 };
     col.forEach(function (c) { ["a", "acq", "dispo", "sell", "net", "close", "impT", "cost", "profit"].forEach(function (k) { T[k] += c[k]; }); sh.items.forEach(function (it) { T.imp[it.id] = (T.imp[it.id] || 0) + c.imp[it.id]; }); });
-    return { col: col, T: T };
+    return { col: col, T: T, R: R };
   }
   function uwSheetBox(d, r) {
     var key = "uw-" + d.id;
     var sh = S.local[key] || (S.local[key] = JSON.parse(JSON.stringify(d.uwSheet && d.uwSheet.items ? d.uwSheet : uwDefault(d, r))));
+    sh.tot = sh.tot || {};
     var box = h("div", { className: "box uw-sheet", id: key });
     var outs = {}, savedEl = null;
     var save = function () {
@@ -1895,16 +1910,26 @@ input[type=file]{font-size:12.5px;max-width:100%}
       var el = h("input", Object.assign({ type: "number", value: obj[k] == null ? "" : String(obj[k]), oninput: function (e) { obj[k] = e.target.value; refresh(); later(); } }, attrs || {}));
       return el;
     };
-    var cell = function (obj, k, attrs) { return h("td", { className: "r in" }, inp(obj, k, attrs)); };
     var paren = function (n) { return n ? "(" + money(Math.abs(n)).slice(1) + ")" : "–"; };
     var amt = function (n) { return n ? money(n).replace("$-", "-$") : "–"; };
     var set = function (id, txt, neg) { var el = outs[id]; if (!el) return; el.textContent = txt; el.classList.toggle("neg", !!neg); };
+    var fmtIn = function (rk, n) { return !n ? "" : rk === "acres" ? String(+n.toFixed(2)) : Math.round(n).toLocaleString("en-US"); };
+    var cid = function (rk, pid) { return key + "-" + rk + "-" + pid; };
     var refresh = function () {
-      var c = uwCalc(sh), T = c.T, ids = sh.parcels.map(function (p) { return p.id; }).concat(["T"]);
+      var c = uwCalc(sh), T = c.T, R = c.R, ids = sh.parcels.map(function (p) { return p.id; }).concat(["T"]);
+      // Input rows: gray placeholders show the split (parcel cells) or the sum (Total) wherever a cell is blank.
+      Object.keys(R).forEach(function (rk) {
+        var x = R[rk];
+        sh.parcels.forEach(function (p, j) { var el = document.getElementById(cid(rk, p.id)); if (el) el.placeholder = x.auto[j] ? fmtIn(rk, x.v[j]) : ""; });
+        var te = document.getElementById(cid(rk, "T"));
+        if (te) {
+          te.placeholder = x.hasTot ? "" : fmtIn(rk, x.sum);
+          te.classList.toggle("off", x.off);
+          te.title = x.off ? "The parcel cells add up to " + fmtIn(rk, x.sum) + ", not this total" : (x.hasTot ? "Split across the blank parcel cells" : "Sum of the parcel cells. Type a total to split it across the parcels.");
+        }
+      });
       ids.forEach(function (id, j) {
         var x = id === "T" ? T : c.col[j];
-        if (id === "T") { set("acres-T", T.a ? +T.a.toFixed(2) + "" : "–"); set("dispo-T", amt(T.dispo)); set("acq-T", paren(T.acq)); set("close-T", paren(T.close)); sh.items.forEach(function (it) { set("imp-" + it.id + "-T", paren(T.imp[it.id])); }); }
-        else { var ai = document.getElementById(key + "-acq-" + id); if (ai) ai.placeholder = money(x.acq); }
         set("sell-" + id, paren(x.sell)); set("net-" + id, amt(x.net)); set("impT-" + id, paren(x.impT));
         set("cost-" + id, paren(x.cost)); set("profit-" + id, amt(x.profit), x.profit < 0);
         set("margin-" + id, x.dispo ? Math.round(x.profit / x.dispo * 100) + "%" : "–", x.profit < 0);
@@ -1915,8 +1940,8 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("span", { className: "lbl", style: "margin:0", text: "Underwriting" }),
       (savedEl = h("span", { className: "small muted", text: d.uwSheet && d.uwSheet.updatedAt ? "Saved " + fmtDT(d.uwSheet.updatedAt) + (d.uwSheet.by ? " by " + d.uwSheet.by : "") : "Saves as you type" }))));
     box.appendChild(h("div", { className: "uw-top" },
-      h("label", { className: "f" }, "Purchase price ($)", inp(sh, "price", { id: key + "-price", step: "1000", min: "0" })),
       h("label", { className: "f" }, "Selling costs (% of sale)", inp(sh, "sellPct", { step: "0.5", min: "0", title: "Commissions and seller closing costs on each lot sale" }))));
+    box.appendChild(h("p", { className: "small muted", style: "margin:0 0 8px", text: "On any line, type the Total and it splits across the parcels (by acres; acres split evenly), or type each parcel and leave the Total blank to add them up. Gray numbers are filled in for you; a typed parcel cell always wins." }));
     // ---- pro forma: line items down, child parcels across
     var hd = h("tr", null, h("th", { className: "lab" }));
     sh.parcels.forEach(function (p, i) {
@@ -1926,24 +1951,33 @@ input[type=file]{font-size:12.5px;max-width:100%}
     hd.appendChild(h("th", { className: "r", text: "Total" }));
     var tb = h("tbody");
     var sec = function (t) { var tr = h("tr", { className: "sec" }, h("td", { className: "lab", text: t })); sh.parcels.forEach(function () { tr.appendChild(h("td")); }); tr.appendChild(h("td")); tb.appendChild(tr); };
-    var inRow = function (lab, k, attrs, totId, cls) { var tr = h("tr", { className: cls || "" }, h("td", { className: "lab", text: lab })); sh.parcels.forEach(function (p) { tr.appendChild(cell(p, k, Object.assign({ "aria-label": lab + ", " + p.name }, attrs || {}, k === "acq" ? { id: key + "-acq-" + p.id } : {}))); }); tr.appendChild(totId ? o(totId) : h("td")); tb.appendChild(tr); };
-    var outRow = function (lab, k, cls) { var tr = h("tr", { className: cls || "" }, h("td", { className: "lab", text: lab })); sh.parcels.forEach(function (p) { tr.appendChild(o(k + "-" + p.id)); }); tr.appendChild(o(k + "-T")); tb.appendChild(tr); };
-    inRow("Acres", "acres", { step: "0.01", min: "0" }, "acres-T");
+    // An input row: parcel cells plus an editable Total cell (totObj[totKey]).
+    var inRow = function (lab, rk, getObj, pk, totObj, totKey, attrs, labEl) {
+      var tr = h("tr", null, labEl || h("td", { className: "lab", text: lab }));
+      sh.parcels.forEach(function (p) {
+        var ob = getObj(p), kk = pk(p);
+        tr.appendChild(h("td", { className: "r in" }, inp(ob, kk, Object.assign({ id: cid(rk, p.id), "aria-label": lab + ", " + p.name }, attrs))));
+      });
+      tr.appendChild(h("td", { className: "r in" }, inp(totObj, totKey, Object.assign({ id: cid(rk, "T"), className: "tot-in", "aria-label": lab + ", total" }, attrs))));
+      tb.appendChild(tr);
+    };
+    var self = function (p) { return p; }, k = function (name) { return function () { return name; }; };
+    var outRow = function (lab, kk, cls) { var tr = h("tr", { className: cls || "" }, h("td", { className: "lab", text: lab })); sh.parcels.forEach(function (p) { tr.appendChild(o(kk + "-" + p.id)); }); tr.appendChild(o(kk + "-T")); tb.appendChild(tr); };
+    inRow("Acres", "acres", self, k("acres"), sh.tot, "acres", { step: "0.01", min: "0" });
     sec("Revenue");
-    inRow("Dispo price", "dispo", { step: "1000", min: "0" }, "dispo-T");
+    inRow("Dispo price", "dispo", self, k("dispo"), sh.tot, "dispo", { step: "1000", min: "0" });
     outRow("Less selling costs", "sell");
     outRow("Net sale proceeds", "net", "tot");
     sec("Acquisition");
-    inRow("Purchase price (by acres)", "acq", { step: "1000", min: "0" }, "acq-T");
-    inRow("Closing costs", "close", { step: "100", min: "0" }, "close-T");
+    inRow("Purchase price", "acq", self, k("acq"), sh, "price", { step: "1000", min: "0" });
+    inRow("Closing costs", "close", self, k("close"), sh.tot, "close", { step: "100", min: "0" });
     sec("Improvements");
     sh.items.forEach(function (it, ii) {
-      var tr = h("tr", null, h("td", { className: "lab" }, h("input", { type: "text", className: "lab-in", "aria-label": "Line item name", value: it.label, oninput: function (e) { it.label = e.target.value; later(); } }),
-        h("button", { className: "x-mini", type: "button", title: "Remove this line", "aria-label": "Remove " + it.label, onclick: function () { sh.items.splice(ii, 1); save(); render(); }, text: "×" })));
-      sh.parcels.forEach(function (p) { tr.appendChild(cell(it.v, p.id, { step: "100", min: "0", "aria-label": it.label + ", " + p.name })); });
-      tr.appendChild(o("imp-" + it.id + "-T")); tb.appendChild(tr);
+      var labEl = h("td", { className: "lab" }, h("input", { type: "text", className: "lab-in", "aria-label": "Line item name", value: it.label, oninput: function (e) { it.label = e.target.value; later(); } }),
+        h("button", { className: "x-mini", type: "button", title: "Remove this line", "aria-label": "Remove " + it.label, onclick: function () { sh.items.splice(ii, 1); save(); render(); }, text: "×" }));
+      inRow(it.label, "i-" + it.id, function () { return it.v; }, function (p) { return p.id; }, it, "tot", { step: "100", min: "0" }, labEl);
     });
-    var addTr = h("tr", null, h("td", { className: "lab" }, h("button", { className: "btn sm ghost", type: "button", onclick: function () { sh.items.push({ id: uwId(), label: "New line item", v: {} }); save(); render(); }, text: "+ Add line item" })));
+    var addTr = h("tr", null, h("td", { className: "lab" }, h("button", { className: "btn sm ghost", type: "button", onclick: function () { sh.items.push({ id: uwId(), label: "New line item", v: {}, tot: "" }); save(); render(); }, text: "+ Add line item" })));
     sh.parcels.forEach(function () { addTr.appendChild(h("td")); }); addTr.appendChild(h("td")); tb.appendChild(addTr);
     outRow("Total improvements", "impT", "sub");
     outRow("Total cost", "cost", "tot");
@@ -1951,7 +1985,9 @@ input[type=file]{font-size:12.5px;max-width:100%}
     outRow("Margin", "margin");
     box.appendChild(h("div", { className: "uw-wrap" }, h("table", { className: "t uw-t" }, h("thead", null, hd), tb)));
     box.appendChild(h("div", { className: "row", style: "margin-top:6px" },
-      h("button", { className: "btn sm ghost", type: "button", onclick: function () { var A = uwNum(d.acres) - sh.parcels.reduce(function (s, p) { return s + uwNum(p.acres); }, 0); sh.parcels.push({ id: uwId(), name: "Parcel " + (sh.parcels.length + 1), acres: A > 0 ? +A.toFixed(2) : "", dispo: "", acq: "", close: "" }); save(); render(); }, text: "+ Add child parcel" })));
+      h("button", { className: "btn sm ghost", type: "button", onclick: function () {
+        var A = uwBlank(sh.tot.acres) ? uwNum(d.acres) - sh.parcels.reduce(function (s, p) { return s + uwNum(p.acres); }, 0) : 0;
+        sh.parcels.push({ id: uwId(), name: "Parcel " + (sh.parcels.length + 1), acres: A > 0 ? +A.toFixed(2) : "", dispo: "", acq: "", close: "" }); save(); render(); }, text: "+ Add child parcel" })));
     setTimeout(refresh, 0);
     return box;
   }
