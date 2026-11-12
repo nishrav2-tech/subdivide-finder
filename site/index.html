@@ -1875,7 +1875,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
     var P = sh.parcels, col = function (k) { return P.map(function (p) { return p[k]; }); };
     var R = {};
     R.acres = uwSplit(col("acres"), sh.tot.acres, null);
-    var wA = R.acres.sum > 0 ? R.acres.v : null;
+    var wA = null; // a typed Total is split evenly across the parcels
     R.dispo = uwSplit(col("dispo"), sh.tot.dispo, wA);
     R.acq = uwSplit(col("acq"), sh.price, wA);
     R.close = uwSplit(col("close"), sh.tot.close, wA);
@@ -1941,7 +1941,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       (savedEl = h("span", { className: "small muted", text: d.uwSheet && d.uwSheet.updatedAt ? "Saved " + fmtDT(d.uwSheet.updatedAt) + (d.uwSheet.by ? " by " + d.uwSheet.by : "") : "Saves as you type" }))));
     box.appendChild(h("div", { className: "uw-top" },
       h("label", { className: "f" }, "Selling costs (% of sale)", inp(sh, "sellPct", { step: "0.5", min: "0", title: "Commissions and seller closing costs on each lot sale" }))));
-    box.appendChild(h("p", { className: "small muted", style: "margin:0 0 8px", text: "On any line, type the Total and it splits across the parcels (by acres; acres split evenly), or type each parcel and leave the Total blank to add them up. Gray numbers are filled in for you; a typed parcel cell always wins." }));
+    box.appendChild(h("p", { className: "small muted", style: "margin:0 0 8px", text: "On any line, type the Total and it clears that line and splits evenly across the parcels, or type each parcel and leave the Total blank to add them up. Gray numbers are filled in for you." }));
     // ---- pro forma: line items down, child parcels across
     var hd = h("tr", null, h("th", { className: "lab" }));
     sh.parcels.forEach(function (p, i) {
@@ -1958,7 +1958,13 @@ input[type=file]{font-size:12.5px;max-width:100%}
         var ob = getObj(p), kk = pk(p);
         tr.appendChild(h("td", { className: "r in" }, inp(ob, kk, Object.assign({ id: cid(rk, p.id), "aria-label": lab + ", " + p.name }, attrs))));
       });
-      tr.appendChild(h("td", { className: "r in" }, inp(totObj, totKey, Object.assign({ id: cid(rk, "T"), className: "tot-in", "aria-label": lab + ", total" }, attrs))));
+      // Typing a Total wipes the row's parcel cells so the Total is split evenly across them.
+      var onTot = function (e) {
+        totObj[totKey] = e.target.value;
+        if (!uwBlank(e.target.value)) sh.parcels.forEach(function (p) { getObj(p)[pk(p)] = ""; var el = document.getElementById(cid(rk, p.id)); if (el) el.value = ""; });
+        refresh(); later();
+      };
+      tr.appendChild(h("td", { className: "r in" }, inp(totObj, totKey, Object.assign({ id: cid(rk, "T"), className: "tot-in", "aria-label": lab + ", total", oninput: onTot }, attrs))));
       tb.appendChild(tr);
     };
     var self = function (p) { return p; }, k = function (name) { return function () { return name; }; };
