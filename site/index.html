@@ -177,6 +177,11 @@ details.aside[open]>summary::before{transform:rotate(90deg)}
 .dr-head .m{color:var(--ink-3);font-size:12.5px;margin-top:4px}
 .dr-head .row{margin-top:10px}
 .dr-body{padding:16px 20px 40px;display:flex;flex-direction:column;gap:14px}
+.fold-head{cursor:pointer;user-select:none}
+.fold-head .lbl::before,.lbl.fold-head::before{content:"▾";display:inline-block;width:14px;color:var(--ink-3)}
+.folded>.fold-head .lbl::before,.folded>.lbl.fold-head::before{content:"▸"}
+.folded>:not(.fold-head){display:none!important}
+.folded>.fold-head,.folded>.fold-head .lbl{margin-bottom:0}
 .box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px}
 .box>.lbl,.lbl{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;display:block}
 .note{background:var(--surface-2);border-radius:var(--r-md);padding:10px 12px;font-size:13px;color:var(--ink-2)}
@@ -1203,6 +1208,30 @@ input[type=file]{font-size:12.5px;max-width:100%}
     render();
   }
 
+  // Property panel sections fold when their heading is clicked. Underwriting and Exit scenarios start folded;
+  // the choice is kept (per section, for every property) until the page is reloaded.
+  var FOLD_CLOSED = { "Underwriting": true, "Exit scenarios": true };
+  function makeFoldable(body) {
+    S.fold = S.fold || {};
+    Array.prototype.forEach.call(body.children, function (box) {
+      if (!box.classList || !box.classList.contains("box") || box.tagName === "DETAILS") return;
+      var c = box;
+      while (c.children.length === 1 && c.firstElementChild.children.length && !c.firstElementChild.classList.contains("lbl")) c = c.firstElementChild;
+      var head = c.firstElementChild; if (!head || c.children.length < 2) return;
+      var lbl = head.classList.contains("lbl") ? head : head.querySelector(".lbl"); if (!lbl) return;
+      var key = lbl.textContent.split(" · ")[0].split(" (")[0].trim();
+      var closed = S.fold[key] != null ? S.fold[key] : !!FOLD_CLOSED[key];
+      head.classList.add("fold-head"); head.title = "Click to open or close this section";
+      head.setAttribute("role", "button"); head.setAttribute("tabindex", "0"); head.setAttribute("aria-expanded", String(!closed));
+      c.classList.toggle("folded", closed);
+      var toggle = function (e) {
+        if (e.target.closest("button, a, input, select, textarea")) return;
+        if (e.type === "keydown") { if (e.key !== "Enter" && e.key !== " ") return; e.preventDefault(); }
+        var now = !c.classList.contains("folded"); c.classList.toggle("folded", now); S.fold[key] = now; head.setAttribute("aria-expanded", String(!now));
+      };
+      head.addEventListener("click", toggle); head.addEventListener("keydown", toggle);
+    });
+  }
   function rejRank(d) { return d.stage === "rejected" || d.col === "rejected" ? 0 : d.stage === "dead" ? 1 : 2; }
   function rejReason(d) {
     if (d.stage === "dead") return "Dead" + (d.deadReason ? ": " + d.deadReason : "");
@@ -1510,6 +1539,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       if (!threads.length || S.composeOpen[d.id] || S.ideas["new-" + d.id]) body.appendChild(h("div", { className: "box" }, emailPanel("first", "new-" + d.id, null, d)));
       else body.appendChild(h("div", null, h("button", { className: "btn sm ghost", type: "button", onclick: function () { S.composeOpen[d.id] = true; render(); }, text: "+ Start a new email thread with this agent" })));
     }
+    makeFoldable(body);
     return { head: head, body: body };
   }
   function threadBox(o, d) {
