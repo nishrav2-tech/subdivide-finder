@@ -1884,18 +1884,28 @@ input[type=file]{font-size:12.5px;max-width:100%}
     { k: "emd", t: "Earnest money ($)", type: "number", step: "500" },
     { k: "ddDays", t: "Due diligence (days)", type: "number", step: "1" },
     { k: "extensions", t: "Extensions needed", type: "text", ph: "e.g. one 30-day extension for survey and split approval" },
+    { k: "extFee", t: "Fee per extension ($)", type: "number", step: "100" },
     { k: "conditions", t: "Conditions", type: "text", ph: "e.g. subject to survey, perc on each lot, clear title, county split approval" },
     { k: "notes", t: "Other terms", type: "text", ph: "e.g. seller pays deed prep; title company of buyer's choice" }
   ];
+  // What "Copy terms for agent" puts on the clipboard: address, listing link, then one bullet per term.
+  // Line 0 is the address and line 1 the link; the Offer made record keeps the bullets only (slice(2)).
   function termsText(d, t) {
-    var L = [d.address, "Offer: " + (money(t.price) || "(price)")];
-    if (t.closeDays) L.push("Close in " + t.closeDays + " days");
-    if (t.emd) L.push("Earnest money " + money(t.emd));
-    if (t.ddDays) L.push(t.ddDays + "-day due diligence");
-    if (t.extensions) L.push("Extensions: " + t.extensions);
-    if (t.conditions) L.push("Conditions: " + t.conditions);
-    if (t.notes) L.push(t.notes);
-    return L.join("\n");
+    var lk = d.links || {}, link = lk.zillow ? "Zillow: " + lk.zillow : (lk.redfin ? "Redfin: " + lk.redfin : "Listing: (no link saved)");
+    var cap = function (x) { x = String(x).trim(); return x.charAt(0).toUpperCase() + x.slice(1); };
+    var addr = d.address + (d.state && d.address.indexOf(", " + d.state) < 0 ? ", " + d.state : "");
+    var B = [];
+    B.push("Offer price: " + (+t.price > 0 ? money(t.price) : "$_______"));
+    if (+t.emd > 0) B.push("Earnest money: " + money(t.emd));
+    if (+t.ddDays > 0) B.push("Due diligence: " + t.ddDays + " days");
+    if (t.extensions) {
+      B.push("Extensions: " + cap(t.extensions));
+      B.push("Extension fee: " + (+t.extFee > 0 ? money(t.extFee) : "$_______") + " per extension");
+    } else if (+t.extFee > 0) B.push("Extension fee: " + money(t.extFee) + " per extension");
+    if (+t.closeDays > 0) B.push("Closing: Within " + t.closeDays + " days");
+    if (t.conditions) B.push("Conditions: " + cap(t.conditions));
+    if (t.notes) B.push("Other terms: " + cap(t.notes));
+    return ["Offer for " + addr, link, ""].concat(B.map(function (x) { return "\u2022 " + x; })).join("\n");
   }
   function offerTermsBox(d, c) {
     var key = "terms-" + d.id, saved = d.terms || {}, rv = d.review || {};
@@ -1927,7 +1937,7 @@ input[type=file]{font-size:12.5px;max-width:100%}
       h("button", { className: "btn", type: "button", onclick: copy, text: "Copy terms for agent" }),
       c.id === "offerready" ? h("button", { className: "btn", type: "button", onclick: function () {
         var amt = Math.round(parseFloat(st.price));
-        save({ col: "offer", patch: { offer: { amount: amt > 0 ? amt : null, terms: termsText(d, st).split("\n").slice(2).join("; "), date: todayCT(), status: "Submitted", via: "agent" } } });
+        save({ col: "offer", patch: { offer: { amount: amt > 0 ? amt : null, terms: termsText(d, st).split("\n").slice(3).map(function (x) { return x.replace(/^\u2022 /, ""); }).join("; "), date: todayCT(), status: "Submitted", via: "agent" } } });
       }, text: "Agent submitted it" }) : null,
       S.flash[key] ? h("span", { className: "state", text: S.flash[key] }) : null));
     return box;
